@@ -1,0 +1,1206 @@
+      * Latin American Byte                               Guatemala, 10/AGO/2016
+      * Programador: CC
+      * Descripci�n: Servidor de Interfaz al CORE para Transf. SIP
+      **************************************************************************
+     FIBPARM01  IF   E           K DISK
+     FIBCANA01  IF   E           K DISK
+     FIBIDSR01  IF   E           K DISK
+     FIBCAJE01  IF   E           K DISK
+     FIBSTSS    UF A E           K DISK    USROPN
+      *INTERFAZ WEB-AS400*
+     FIBMERR01  IF   E           K DISK
+     FIBPSIP01  IF   E           K DISK
+     FIBTSIP00  UF   E           K DISK
+     FIBTSIP07  UF   E           K DISK    RENAME(RCTSIP:RCTSIP07)
+     FIBLTSI    UF A E           K DISK
+     FIBJTSI    UF A E           K DISK
+     FIBJTSI01  IF   E           K DISK    PREFIX(XY) RENAME(RCJTSI:RCJTSI01)
+      **INTERFAZ DEPOSITOS
+     FDPREGCON  IF   E           K Disk
+     FDPCTAS01  IF   E           K DISK
+     FDPTRXCOR  UF   E           K DISK
+     FDPTB13    IF   E           K Disk
+     FDPTRX01   IF   E           K DISK
+     FDPJOUR01  IF   E           K DISK
+     FDPJOUR05  IF   E           K DISK    RENAME(RCJOUR:RCJOUR05)
+     FDPMOVH94  IF   E           K DISK
+      **INTERFAZ SIP
+     FIBHTAC01  UF   E           K DISK
+     FIBTACH07  UF   E           K DISK
+     FACHRELAC  IF   E           K DISK
+     FIBPCCH01  IF   E           K DISK
+     FIBPROM01  IF   E           K DISK
+     FIBBANP01  IF   E           K DISK
+      **INTERFAZ clientes
+     FCLDICL12  IF   E           K DISK
+     FCLMCTE01  IF   E           K DISK
+      **VECTORES
+     D VTXT            S              1    DIM(25)
+     D VNUM            S              1    DIM(20)
+      * TRANSACCIONES EQUIVALENTES
+     D TXU             S              8    DIM(99)
+     D MON             S             13    DIM(99)
+     D TXE             S              4  0 DIM(99)
+     D MTE             S              3  0 DIM(99)
+     D ND              S              3  0 DIM(10)
+      * TRAMA RECIBIDA DE LA INTERFAZ WEB
+     D DATREC          DS
+     D WI_KEYPXP                     16
+     D WI_MODO                        1
+     D WI_CICLO                       2  0
+     D WI_IDEJEC                     10
+     D WI_FECHAD                      2  0
+     D WI_FECHAM                      2  0
+     D WI_FECHAA                      4  0
+     D WI_HORA                        6  0
+     D WI_TRAMADET                 1024
+      *********************************************************
+      *PARA DEBITOS
+      *********************************************************
+     D TRADET1         DS
+     D DI1_TIPOCTA                    2  0
+     D DI1_MONEDA                     3
+     D DI1_CUENTA                    25
+     D DI1_MONTO                     13  2
+     D DI1_OBSDEB                    40
+     D DI1_CLIENTE                   18
+     D DI1_IDBXI                     12  0
+     D DI1_ARCHACH                  100
+     D DI1_ARCHLBTR                 100
+     D DI1_BANCOORI                   4  0
+     D DI1_BANCODES                   4  0
+     D DI1_TIPCTADES                  2  0
+     D DI1_CTADEST                   25
+     D DI1_NOMCTADEST                60
+     D DI1_USUARIOWEB                25
+      *********************************************************
+      *PARA CREDITOS
+      *********************************************************
+     D TRADET2         DS
+     D DI2_TIPOCTA                    2  0
+     D DI2_MONEDA                     3
+     D DI2_CUENTA                    25
+     D DI2_MONTO                     13  2
+     D DI2_OBSCRE                    40
+     D DI2_ARCHLBTR                 100
+     D DI2_BANCOORI                   4  0
+     D DI2_BANCODES                   4  0
+     D DI2_TIPCTAORI                  2  0
+     D DI2_CTAORIGEN                 25
+     D DI2_NOMCTAORIG                60
+      *********************************************************
+      *PARA REVERSAS
+      *********************************************************
+     D TRADET3         DS
+     D DI3_TIPOCTA                    2  0
+     D DI3_MONEDA                     3
+     D DI3_CUENTA                    25
+     D DI3_MONTO                     13  2
+     D DI3_OBSCRE                    40
+     D DI3_ARCHLBTR                 100
+     D DI3_BANCOORI                   4  0
+     D DI3_BANCODES                   4  0
+     D DI3_TIPCTAORI                  2  0
+     D DI3_CTAORIGEN                 25
+     D DI3_NOMCTAORIG                60
+     D DI3_ORIGEN                     1
+     D DI3_CODERRLBTR                 4
+      *********************************************************
+      *Servicio de parametros
+      *********************************************************
+     D TRADET4         DS
+     D DI4_CUENTA                    25
+     D DI4_PRODUC                     2  0
+      *********************************************************
+      *BLOQUEOS
+      *********************************************************
+     D TRADET5         DS
+     D DI5_CTA25                     25
+     D DI5_MONEDA                     3
+     D DI5_MONTO                     13  2
+     D DI5_IDBXI                     10  0
+      *********************************************************
+      *DESBLOQUEOS
+      *********************************************************
+     D TRADET6         DS
+     D DI6_IDBXI                     12  0
+      *********************************************************
+      *Tramas DETALLE respuesta
+      *********************************************************
+     D DEBITOUT        DS
+     D DO1_CERR                       3  0
+     D DO1_DERR                     100
+     D DO1_NAUTOR                    12  0
+     D DO1_MAIL                      50
+     D CREDIOUT        DS
+     D DO2_CERR                       3  0
+     D DO2_DERR                     100
+     D DO2_NAUTOR                    12  0
+     D DO2_MAIL                      50
+     D REVEROUT        DS
+     D DO3_CERR                       3  0
+     D DO3_DERR                     100
+     D DO3_NAUTOR                    12  0
+     D DO3_MAIL                      50
+     D PARAMOUT        DS
+     D DO4_CERR                       3  0
+     D DO4_DERR                     100
+     D DO4_NAUTOR                    12  0
+     D DO4_CIF                       18
+     D DO4_NOMBRE                    60
+     D DO4_TIPOD                      1
+     D DO4_NUMDO                     18
+     D BLOQUOUT        DS
+     D DO5_CERR                       3  0
+     D DO5_DERR                     100
+     D DO5_NAUTOR                    12  0
+     D DESBLOUT        DS
+     D DO6_CERR                       3  0
+     D DO6_DERR                     100
+     D DO6_NAUTOR                    12  0
+      *Respuesta ejecucion de programa hacia la WEB
+     D WOMODO2         DS
+     D WO2_CERR                       3  0
+     D WO2_DERR                     100
+     D WO2_NARC                      12  0
+     D WO2_MAIL                      50
+
+     D                 DS                  INZ
+     D  TIPO                   1      2  0
+     D  AGEN                   3      5  0
+     D  CORR                   6     11  0
+     D  DIVE                  12     12  0
+     D  CTA                    1     12  0
+     D  CTA25                  1     25
+
+     D                 DS                  INZ
+     D  DIADP                  1      2  0
+     D  MESDP                  3      4  0
+     D  AZODP                  7      8  0
+     D  AZODP4                 5      8  0
+     D  DATHOY                 1      8  0
+
+     D                 DS                  INZ
+     D  DIAC                   1      2  0
+     D  MESC                   3      4  0
+     D  AZOC                   5      6  0
+     D  FECHADP                1      6  0
+
+     D                 DS                  INZ
+     D  DCREFNUM              10     15  0
+     D  DCREF                  1     15
+
+     D                 DS                  INZ
+     D  CLT18                  1     18
+     D  CLT20                  1     20
+     D equivas         DS                  INZ
+     D  ACHEQ1                        8
+     D  ACHEQ2                        8
+     D  ACHEQ3                        8
+     D  ACHEQ4                        8
+     D  ACHEQ5                        8
+     D  ACHEQ6                        8
+     D  ACHEQ7                        8
+     D  ACHEQ8                        8
+     D  ACHEQ9                        8
+     D  pgcamp                        8
+
+     D                 DS
+     D  ZZZHH                  1      2  0
+     D  ZZZMM                  3      4  0
+     D  ZZZSS                  5      6  0
+     D  ZZZTIM                 1      6  0
+     D  ZZZDIA                 7      8  0
+     D  ZZZMES                 9     10  0
+     D  ZZZANO                11     14  0
+     D TIMEST                  1     14  0
+
+      * ESTRUCTURA DE TRABAJO
+     D                SDS
+     D  PGM                    1      8
+     D  DT                    91    170
+     D  ZZZPAN               244    253
+     D  ZZZUSR               254    263
+     D  ZZZNJB               264    269
+      *
+     D                 DS
+     D$Vala                    1    400
+     D                                     Dim(10)
+     DJrVaa1                   1     40
+     DJrVaa2                  41     80
+     DJrVaa3                  81    120
+     DJrVaa4                 121    160
+     DJrVaa5                 161    200
+     DJrVaa6                 201    240
+     DJrVaa7                 241    280
+     DJrVaa8                 281    320
+     DJrVaa9                 321    360
+     DJrVaa0                 361    400
+      *  ------------------------------------------------------
+     DObservacion      S             40
+     D$IDo             S              2  0
+     D$PObs            S              2  0
+     DTrxCodObs        S              4  0
+      * Descriptores de Campos Alfanum�ricos de la transacci�n ..
+     IRCTRX
+     I              TRXN01                      ND(1)
+     I              TRXN02                      ND(2)
+     I              TRXN03                      ND(3)
+     I              TRXN04                      ND(4)
+     I              TRXN05                      ND(5)
+     I              TRXN06                      ND(6)
+     I              TRXN07                      ND(7)
+     I              TRXN08                      ND(8)
+     I              TRXN09                      ND(9)
+     I              TRXN10                      ND(10)
+
+      * -------------------------------------------------------
+      * Definici�n de llaves
+     C     CLIKEY        KLIST
+     C                   KFLD                    CLTDOC            1
+     C                   KFLD                    CLDOC
+     C     EMAILK        KLIST
+     C                   KFLD                    CLTDOC            1
+     C                   KFLD                    CLDOC
+     C                   KFLD                    CLDICO
+     c     CTAKEY        kList
+     c                   kfld                    TIPO
+     c                   kfld                    AGEN
+     c                   kfld                    CORR
+     c                   kfld                    DIVE
+     C     IBERKEY       KLIST
+     C                   KFLD                    CANAL
+     C                   KFLD                    MEAPLI
+     C                   KFLD                    MECODE
+     C     EXENKEY       KLIST
+     C                   KFLD                    ACHRCIF
+     C                   KFLD                    ACHRBCO
+     C                   KFLD                    ACHRCTA
+     C     LOGKEY        KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    WI_KEYPXP
+     C     LOGKEYJ       KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    WI_KEYPXP
+     C                   KFLD                    PXPCOR
+      *
+     C     BXITKEY       KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    DI1_IDBXI
+     C                   KFLD                    TIPOTR            1
+     C     BXITKE2       KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    DI5_IDBXI
+     C                   KFLD                    TIPOTR            1
+     c     DESBKEY       KLIST
+     c                   KFLD                    CACODE
+     c                   KFLD                    DI6_IDBXI
+     c                   KFLD                    TSTIPT
+      *
+     C     *ENTRY        PLIST
+     C                   PARM                    CANAL             2
+      *
+     C     CANAL         CHAIN     IBPARM01                           19
+
+      *Recupera parametros del servidor
+     C                   MoveL     ' '           EliminaDTQ        1
+     C                   EXSR      REFRESCA
+     C                   EXSR      TRAECOLAS
+      * COMIENZA EL CICLO
+     C                   Z-ADD     2             DOS               2 0
+     C     1             DOWNE     DOS
+     C                   CALL      'QRCVDTAQ'                           13
+     C                   PARM                    DTQI             10
+     C                   PARM                    PARBIQ
+     C                   PARM                    LONI              5 0
+     C                   PARM      *BLANKS       DATAIN         1024
+     C                   PARM      IDTIMW        VALMEN            5 0
+      *Si da error el QRCV crea la cola
+     C                   If        *In13
+     C                   MoveL     'N'           EliminaDTQ        1
+     C                   Exsr      TraeColas
+     C                   EndIf
+      * Finaliza
+     C                   if        %Trim(DATAIN) = 'ENDSERVER'
+     C                   Leave
+     C                   EndIf
+      * Refrescar
+     C                   if        %Trim(DATAIN) = 'REFRESH'
+     C                   Exsr      Refresca
+     C                   Iter
+     C                   EndIf
+      *
+     C                   if        %Trim(DATAIN) <> 'REFRESH'
+     C                             AND %Trim(DATAIN) <> 'ENDSERVER'
+      *Procesa Debito/Credito/Ejecucion programa
+     C                   EXSR      PROCE
+     C                   ENDIF
+      **
+     C                   ENDDO
+      *
+     C                   MOVE      *ON           *INLR
+     C                   RETURN
+      *********************************************************************
+      * Trae Nombre de Colas
+      *********************************************************************
+     C     TraeColas     BegSr
+
+     C     IDSRK         KList
+     C                   KFld                    CANAL
+     C                   KFld                    IDSRV
+
+     C                   Eval      IDSRV = 'IBDCRSIP'
+     C     IDSRK         Chain     IBIDSR01                           18
+     C                   If        Not *In18
+     C                   If        IDCOLI = *Blanks
+     C                   Eval      DTQI = 'OPESIPI'
+     C                   Else
+     C                   Eval      DTQI = IDCOLI
+     C                   EndIf
+     C                   If        IDCOLO = *Blanks
+     C                   Eval      DTQO = 'OPESIPO'
+     C                   Else
+     C                   Eval      DTQO = IDCOLO
+     C                   EndIf
+
+     C                   If        EliminaDTQ = 'N'
+     C                   Eval      IDSELI = 0
+     C                   EndIf
+     C                   Call      'IBCRTDTQ'
+     C                   Parm                    DTQI             10
+     C                   Parm      PARBIQ        BIBI             10
+     C                   Parm      'I'           TIPODQ            1
+     C     LONI          Parm                    IDSLDI
+     C                   Parm      0             LONKDQ            3 0
+     C                   Parm                    IDSELI
+
+     C                   Call      'IBCRTDTQ'
+     C                   Parm                    DTQO             10
+     C                   Parm      PARBIQ        BIBI
+     C                   Parm      'O'           TIPODQ
+     C                   Parm                    IDSLDS
+     C                   Parm      IDSLKY        LONKDQ            3 0
+     C                   Parm                    IDSELI
+     C                   EndIf
+     C                   EndSr
+      *********************************************************************
+      * Refresca
+      *********************************************************************
+     C     Refresca      BegSr
+      **
+     C     CANAL         Chain     IBPARM01
+     C     CANAL         Chain     IBCANA01
+      **
+     C                   MOVEL     PGM           INIPGM            2
+     C     INIPGM        CAT       'RTVFAM'      PGMFEC            8
+     C                   CALL      PGMFEC
+     C                   PARM                    FECHA            11
+     C                   PARM                    MNCAPL            2
+     C                   PARM                    MODULO           60
+     C                   MoveL     MNCAPL        AplAct            2
+      *
+     C                   Open      IBSTSS
+     C                   Time                    TIMEST
+      * Actnalizo status
+     C                   Eval      IDCANA = CANAL
+     C                   Eval      IDSRV = 'IBDCRSIP'
+     C*                  Eval      IDSRV = ZZZPAN
+     C     IDSRK         Chain     IBSTSS                             1869
+     C                   Eval      STSSTS = PARSTS
+     C                   Eval      STSANO = ZZZANO
+     C                   Eval      STSMES = ZZZMES
+     C                   Eval      STSDIA = ZZZDIA
+     C                   Eval      STSHOR = ZZZTIM
+     C                   IF        *In18='0'
+     C                   IF        *IN69 = '0'
+     C                   Update    RCSTSS
+     C                   ENDIF
+     C                   Else
+     C                   Write     RCSTSS
+     C                   ENDIF
+     C                   Close     IBSTSS
+      *
+     c     EMPKEY        kList
+     c                   kfld                    EMPCOD
+     C                   MOVE      '1'           EMPCOD
+     C     EMPKEY        CHAIN     DPREGCON
+     C                   IF        NOT %Found(DPREGCON)
+     C                   Z-ADD     0             DATHOY
+     C                   ENDIF
+     C     CANAL         CHAIN     IBPSIP01
+     C                   EndSr
+      *********************************************************************
+      * Proceso Principal
+      *********************************************************************
+     C     PROCE         BegSr
+     C                   z-add     0             Clavo1
+     C                   CLEAR                   OPER              1
+     C                   CLEAR                   DATAOU
+     C                   CLEAR                   PXPTOU
+      *RECIBE de la web
+     C                   MOVEL     DATAIN        DATREC
+      *Para log de tramas web-as400
+     C                   MOVE      WI_KEYPXP     PXPKEY
+     C                   Z-ADD     *YEAR         PXPRXA
+     C                   Z-ADD     *MONTH        PXPRXM
+     C                   Z-ADD     *DAY          PXPRXD
+     C                   TIME                    PXPRXH
+     C                   MOVEL     DATAIN        PXPTIN
+     C                   Write     rcLTSI
+      *Define el modo de Operacion
+     C                   SELECT
+     C     WI_MODO       WHENEQ    '1'
+      *Define el Ciclo
+     C                   SELECT
+      *debito
+     C     WI_CICLO      WHENEQ    01
+     C                   EXSR      Debita
+      *credito
+     C     WI_CICLO      WHENEQ    02
+     C                   EXSR      Acredita
+      *rechazo o reversa (Credito)
+     C     WI_CICLO      WHENEQ    03
+     C                   EXSR      Reversa
+      *PARAMETRIZACION
+     C     WI_CICLO      WHENEQ    04
+     C                   EXSR      PARAMETROS
+      *bloquea saldo
+     C     WI_CICLO      WHENEQ    05
+     C                   EXSR      bloquea
+      *desbloquea saldo
+     C     WI_CICLO      WHENEQ    06
+     C                   EXSR      desbloquea
+     C                   ENDSL
+      *Modo 2 en este requerimiento no se usa, pero se deja para cuando quieran
+     C     WI_MODO       WHENEQ    '2'
+     C                   EXSR      LLAMAPGM
+     C                   ENDSL
+      *Actualiza LOG  -Solo si encuentra la llave-
+     C                   IF        %Found(IBLTSI)
+     C                   Update    rcLTSI
+     C                   ENDIF
+      *RESPONDE a la web
+     C                   CALL      'QSNDDTAQ'
+     C                   PARM                    DTQO             10
+     C                   PARM                    PARBIQ
+     C                   PARM                    IDSLDS
+     C                   PARM                    DATAOU         1024
+     C                   PARM      IDSLKY        KEYLEN            3 0
+     C                   PARM      WI_KEYPXP     TRX_I            16
+     C                   EndSr
+      *********************************************************************
+      * Busca cuenta
+      *********************************************************************
+     C     BUSEQUIVA     BegSr
+      *DEBITO-1
+     C     OPER          IFEQ      '1'
+     C                   MOVEL     TSTDEB        TRXEQUI          10
+     C                   MOVEL     TSTCDB        TRXEQUIC         10
+     C                   ENDIF
+      *CREDITO-2
+     C     OPER          IFEQ      '2'
+     C                   MOVEL     TSTCRE        TRXEQUI
+     C                   MOVEL     TSTCCR        TRXEQUIC
+     C                   ENDIF
+      *REVERSA-3
+     C     OPER          IFEQ      '3'
+      *NO IMPLEMENTADA
+     C                   ENDIF
+      *BLOQUEO-4
+     C     OPER          IFEQ      '4'
+     C                   MOVEL     TSTBLQ        TRXEQUI
+     C                   ENDIF
+      *DESBLOQ-5
+     C     OPER          IFEQ      '5'
+     C                   MOVEL     TSTDBL        TRXEQUI
+     C                   ENDIF
+     C                   EndSr
+      *********************************************************************
+      * DEBITO
+      *********************************************************************
+     C     Debita        BegSr
+      *
+     c                   MOVEL     WI_TRAMADET   WI_TRAMADETBK  1024
+      *
+     C                   MOVEL     WI_TRAMADET   TRADET1
+     c                   clear                   WI_TRAMADET
+     c                   MOVEL     DI1_IDBXI     WI_TRAMADET
+     C                   EXSR      DESBLOQUEA
+     c                   clear                   WI_TRAMADET
+     c                   MOVEL     WI_TRAMADETBK WI_TRAMADET
+     C     CLAVO1        IFEQ      0
+     C                   MOVEL     TSTDEB        TRXEQUI          10
+     C                   MOVEL     TSTCDB        TRXEQUIC         10
+     C                   MOVEL     TSTDBL        TRXEQUID         10
+     C                   CLEAR                   DEBITOUT
+      *Asigna trama detalle a trama debito
+     C                   MOVE      '1'           OPER              1
+     C                   MOVE      'D'           OPERCORE          1
+     C                   MOVEL     WI_TRAMADET   TRADET1
+      *Busca la transferencia
+     C                   MOVE      'E'           TIPOTR
+     C     BXITKEY       CHAIN     IBTSIP00
+     C                   IF        %FOUND(IBTSIP00)
+     C                   MOVEL     DI1_CUENTA    CTA25
+     C                   MOVE      DI1_MONEDA    MONEDH            3
+     C                   Z-ADD     TSMONT        D3               12 2
+     C                   Z-ADD     00            D4               12 2
+     c                   exsr      armobsdeb
+     C                   MOVEL     textodeb      Observacion      40
+      *Asigna IDS a Archivo journal
+     C                   MOVE      CLDOC         PXPCLI
+     C                   MOVE      WI_KEYPXP     PXPKEY
+     C                   Z-ADD     WI_FECHAA     PXPAZO
+     C                   Z-ADD     WI_FECHAM     PXPMES
+     C                   Z-ADD     WI_FECHAD     PXPDIA
+     C                   Z-ADD     WI_HORA       PXPHOR
+     C                   MOVEL     OPER          PXPTIP
+     C                   MOVEL     0             PXPREF
+     C                   MOVEL     CTA25         PXPCTA
+     C                   Z-ADD     0             PXPTCT
+     C                   Z-ADD     D3            PXPMNT
+     C                   MOVE      MONEDH        PXPMND
+     C                   Z-ADD     0             PXPCRR
+     C                   MOVEL     *BLANKS       PXPDRR
+     C                   Z-ADD     0             PXPAUT
+     C                   Z-ADD     0             PXPSEQ
+     C                   Z-ADD     1             PXPCOR
+     C                   WRITE     RCJTSI
+     C                   ELSE
+     C                   z-add     224           clavo1
+     c                   ENDIF
+      *
+     c                   IF        CLAVO1 = 0
+     C                   EXSR      ENVIA
+     c                   endif
+      *
+     C                   Z-ADD     CLAVO1        DO1_CERR
+     C     CLAVO1        IFEQ      0
+     C                   MOVE      *BLANKS       DO1_DERR
+     C                   MOVE      NOAUTO        DO1_NAUTOR
+     C                   MOVEL     'O'           TSSTAT
+     C                   Z-ADD     TSMONT        TSMOOP
+      *Envia el debito al total operado mas adelante se suman las comisiones
+     C                   Z-ADD     TSmont        TSTOOP
+      *Datos para nota de debito en estado de cuenta
+     C                   Z-ADD     AZOC4         DCA�AC
+     C                   Z-ADD     MESC          DCMEAC
+     C                   Z-ADD     DIAC          DCDIAC
+     C                   MOVEL     MONCOD        MOCODE
+     C                   Z-ADD     noauto        dcrefnum
+     C                   Z-ADD     noauto        MVSEQ
+     C                   ELSE
+     C                   MOVE      'DP'          MEAPLI
+     C                   Z-ADD     DO1_CERR      MECODE
+     C                   MOVE      '000000'      DO1_NAUTOR
+     C     IBERKEY       CHAIN     IBMERR01
+     C                   IF        %Found(IBMERR01)
+     c                   movel     MEDESC        DO1_DERR
+     C                   ELSE
+     c                   move      *BLanks       DO1_DERR
+     C                   Endif
+     C                   MOVEL     'E'           TSSTAT
+     C                   Z-ADD     clavo1        tscore
+     C                   ENDIF
+
+     c     LOGKEYJ       CHAIN     IBJTSI
+     C                   IF        %Found(IBJTSI)
+     C                   Z-ADD     DO1_CERR      PXPCRR
+     C                   MOVEL     DO1_DERR      PXPDRR
+     C                   MOVE      DO1_NAUTOR    PXPSEQ
+     C                   z-add     D2            IBRBLQ
+     C                   Z-ADD     TRXCOD        PXPRXC
+     C                   Z-ADD     *YEAR         TSANOP
+     C                   Z-ADD     *MONTH        TSMEOP
+     C                   Z-ADD     *DAY          TSDIOP
+     C                   TIME                    TSHOOP
+     C                   UPDATE    RCJTSI
+     C                   UPDATE    RCTSIP
+     C                   ENDIF
+      *Respuesta a la web
+     C                   MOVEL     DEBITOUT      DATAOU
+      *
+     C     LOGKEY        CHAIN     IBLTSI
+     C                   IF        %Found(IBLTSI)
+     C                   Z-ADD     *YEAR         PXPROA
+     C                   Z-ADD     *MONTH        PXPROM
+     C                   Z-ADD     *DAY          PXPROD
+     C                   TIME                    PXPROH
+     C                   MOVEL     DATAOU        PXPTOU
+     C                   ENDIF
+      **COMISION SI APLICA
+     C     CLAVO1        IFEQ      0
+     c                   exsr      comideb
+     C                   ENDIF
+      **
+     C                   ENDIF
+     C                   EndSr
+      *********************************************************************
+      * comision
+      *********************************************************************
+     C     Comideb       BegSr
+      *Busca la transferencia
+     C                   MOVE      'E'           TSTIPT
+     c     orikey        KLIST
+     c                   KFLD                    CACODE
+     c                   KFLD                    IBIDIB
+     c                   KFLD                    TSTIPT
+     C     orikey        CHAIN     IBTSIP00
+     C                   IF        %FOUND(IBTSIP00)
+     C                   IF        TSCOMI > 0 OR TSCMBC > 0
+     C                   MOVE      '1'           OPER              1
+     C                   MOVE      'D'           OPERCORE          1
+     C                   Z-ADD     TSCOMI        D3               12 2
+     C                   Z-ADD     TSCMBC        D4               12 2
+     C     TSCOMI        ADD       TSCMBC        D5               12 2
+     C                   MOVE      *BLANKS       Observacion      40
+      *Asigna IDS a Archivo journal
+     c                   CLEAR                   TRXEQUI
+     c                   movel     TRXEQUIC      TRXEQUI
+
+     C                   MOVEL     CLCCLI        PXPCLI
+     C                   MOVE      WI_KEYPXP     PXPKEY
+     C                   Z-ADD     WI_FECHAA     PXPAZO
+     C                   Z-ADD     WI_FECHAM     PXPMES
+     C                   Z-ADD     WI_FECHAD     PXPDIA
+     C                   Z-ADD     WI_HORA       PXPHOR
+     C                   MOVEL     OPER          PXPTIP
+     C                   MOVEL     0             PXPREF
+     C                   MOVEL     CTA25         PXPCTA
+     C                   Z-ADD     0             PXPTCT
+     C                   Z-ADD     D3            PXPMNT
+     C                   MOVE      MONEDH        PXPMND
+     C                   Z-ADD     0             PXPCRR
+     C                   MOVEL     *BLANKS       PXPDRR
+     C                   Z-ADD     0             PXPAUT
+     C                   Z-ADD     0             PXPSEQ
+     C                   ADD       1             PXPCOR
+     C                   WRITE     RCJTSI
+      *
+     c                   IF        CLAVO1 = 0
+     C                   EXSR      ENVIA
+     c                   endif
+      *
+     C                   Z-ADD     CLAVO1        DO1_CERR
+     C     CLAVO1        IFEQ      0
+     C                   MOVE      *BLANKS       DO1_DERR
+     C                   MOVE      NOAUTO        DO1_NAUTOR
+     C                   Z-ADD     TSCMBC        TSCOBC
+     C                   Z-ADD     TSCOMI        TSCMOP
+     C                   add       TSCOBC        TSTOOP
+     C                   add       TSCMOP        TSTOOP
+     C                   ELSE
+     C                   Z-ADD     0             TSCOBC
+     C                   Z-ADD     0             TSCMOP
+     C                   MOVE      'DP'          MEAPLI
+     C                   Z-ADD     DO1_CERR      MECODE
+     C                   MOVE      '000000'      DO1_NAUTOR
+     C     IBERKEY       CHAIN     IBMERR01
+     C                   IF        %Found(IBMERR01)
+     c                   movel     MEDESC        DO1_DERR
+     C                   ELSE
+     c                   move      *BLanks       DO1_DERR
+     C                   Endif
+     C                   ENDIF
+     C                   UPDATE    RCTSIP
+
+     c     LOGKEYJ       CHAIN     IBJTSI
+     C                   IF        %Found(IBJTSI)
+     C                   Z-ADD     DO1_CERR      PXPCRR
+     C                   MOVEL     DO1_DERR      PXPDRR
+     C                   MOVE      DO1_NAUTOR    PXPSEQ
+     C                   z-add     D2            IBRBLQ
+     C                   Z-ADD     TRXCOD        PXPRXC
+     C                   UPDATE    RCJTSI
+     C                   ENDIF
+      *Busca la transferencia
+     C                   ENDIF
+     C                   ENDIF
+     C                   EndSr
+      *********************************************************************
+      * CREDITO
+      *********************************************************************
+     C     Acredita      BegSr
+     C                   EndSr
+      *********************************************************************
+      * comision
+      *********************************************************************
+     C     Comicre       BegSr
+     C                   EndSr
+      *********************************************************************
+      * REVERSA
+      *********************************************************************
+     C     Reversa       BegSr
+     C                   EndSr
+      *********************************************************************
+      * comision reversa
+      *********************************************************************
+     C     ComicreR      BegSr
+     C                   EndSr
+      *********************************************************************
+      * DEVUELVE PARAMETROS
+      *********************************************************************
+     C     Parametros    BegSr
+     C                   CLEAR                   PARAMOUT
+      *Asigna trama detalle a trama debito
+     C                   MOVEL     WI_TRAMADET   TRADET4
+     C                   MOVEL     DI4_CUENTA    CTA25
+      *PARA BUSCAR LA CUENTA EN EL ARCHIVO DE EXCENTAS CLIENTE DPCTAS
+     C     CTAKEY        Chain     DPCTAS01
+     C                   IF        %Found(DPCTAS01)
+     C     CLIKEY        CHAIN     CLMCTE01
+     c                   IF        %FOUND(CLMCTE01)
+     C                   MOVE      CLDOC         DO4_CIF
+     C                   MOVEL     CLNOMB        DO4_NOMBRE
+     C                   MOVE      CLTID@        DO4_TIPOD
+     C                   MOVE      CLNUID        DO4_NUMDO
+     C                   ENDIF
+     C                   ENDIF
+      *
+     C                   Z-ADD     0             DO4_CERR
+     C                   Z-ADD     0             DO4_NAUTOR
+     C                   MOVE      *BLANKS       DO4_DERR
+
+     c     LOGKEYJ       CHAIN     IBJTSI
+     C                   IF        %Found(IBJTSI)
+     C                   Z-ADD     DO4_CERR      PXPCRR
+     C                   MOVEL     DO4_DERR      PXPDRR
+     C                   Z-ADD     0             PXPAUT
+     C                   Z-ADD     0             PXPSEQ
+     C                   Z-ADD     0             PXPRXC
+     C                   UPDATE    RCJTSI
+     C                   ENDIF
+      *Respuesta a la web
+     C                   MOVEL     PARAMOUT      DATAOU
+      *
+     C     LOGKEY        CHAIN     IBLTSI
+     C                   IF        %Found(IBLTSI)
+     C                   Z-ADD     *YEAR         PXPROA
+     C                   Z-ADD     *MONTH        PXPROM
+     C                   Z-ADD     *DAY          PXPROD
+     C                   TIME                    PXPROH
+     C                   MOVEL     PARAMOUT      PXPTOU
+     C                   ENDIF
+     C                   EndSr
+      **********************************************************************
+      * ENVIA A DEPOSITOS
+      **********************************************************************
+     C     ENVIA         BEGSR
+      *Validaciones
+      *Esto es generico para Debito-Credito
+     c     CTAKEY        Chain     DPCTAS01
+     C                   IF        %Found(DPCTAS01)
+      *Guardar el codigo de cliente en Cred-Rever
+     C                   CLEAR                   CLTDEP           18
+     C                   MOVE      CLDOC         CLTDEP
+      *
+     C     CANAL         CHAIN     IBCAJE01
+     c                   Z-ADD     IBCAGB        MNAGE             3 0
+     C                   Z-ADD     IBCCAJ        OPERAD            5 0
+     C
+     C     MONCOD        IFEQ      monedh
+     c                   exsr      Bustrx
+     C                   Z-Add     TrxCod        TrxcodObs
+     C                   Z-ADD     MOTCOD        CODMOT            3 0
+     c     OPERCORE      CHAIN     DPTRXCOR                           1969
+     c     *in69         Doweq     *ON
+     c     OPERCORE      CHAIN     DPTRXCOR                           1969
+     c                   Enddo
+ NEW C                   ADD       1             CORCOR
+ NEW C                   UPDATE    RCTRXCOR
+     C                   EXSR      ACT
+     C                   ELSE
+     c                   Z-ADD     55            CLAVO1
+     C                   ENDIF
+     C                   ELSE
+     c                   Z-ADD     20            CLAVO1
+     C                   CLEAR                   CLTDEP           18
+     C                   ENDIF
+     C                   EndSr
+      **********************************************************************
+      * ACTUALIZA
+      **********************************************************************
+     C     ACT           BEGSR
+      * Solo para el modo Desbloqueo
+     C     OPER          IFEQ      '5'
+     C*                  z-add     IBRBLQ        CORCOR
+     C                   z-add     MVSEQ         CORCOR
+     C                   ENDIF
+      * Solo para el modo Desbloqueo
+      *D4 lleva el valor, si es menor o igual a 0 no debe hacerse
+     C                   If        D3 > 0 or D5 > 0
+     C     CTA           DIV       100           D1               12 2
+     C     CORCOR        DIV       100           D2               12 2
+     C                   Z-ADD     DIADP         DIAC
+     C                   Z-ADD     MESDP         MESC
+     C                   Z-ADD     AZODP         AZOC
+     C                   Z-ADD     AZODP4        AZOC4             4 0
+     C                   TIME                    HORAA
+      *
+      *  Arregla campo de observaciones para enviar en la transacci�n ..
+     C                   CLEAR                   RESTO$
+     C     OBSERVACION   IFNE      *BLANKS
+     C                   EXSR      RUT79
+     C                   ENDIF
+      *Ejecuta transaccion
+     C                   CALL      'DPACDPLIB'
+     C                   PARM      'N'           REVSN             1
+     C                   PARM                    TRXCOD            4 0
+     C                   PARM                    OPERAD            5 0
+     C                   PARM      FECHADP       AFECH             6 0
+     C                   PARM                    HORAA             6 0
+     C                   PARM                    MNAGE             3 0
+     C                   PARM                    D1               12 2
+     C                   PARM                    D2               12 2
+     C                   PARM                    D3               12 2
+     C                   PARM                    D4               12 2
+     C                   PARM                    D5               12 2
+     C                   PARM                    D6               12 2
+     C                   PARM                    D7               12 2
+     C                   PARM                    D8               12 2
+     C                   PARM                    D9               12 2
+     C                   PARM                    D0               12 2
+     C                   PARM                    OPERO             1
+     C                   PARM      0             CLAVO1            3 0
+     C                   PARM      0             NOAUTO            6 0
+     C                   PARM                    RESTO$          512
+     C                   Else
+     C                   z-add     53            Clavo1
+     C                   EndIf
+      *
+     C                   ENDSR
+      *- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
+      * Rutina para buscar el c�digo de transacci�n de D�bito
+      *- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
+     C     BusTrx        Begsr
+      *ACA SE USA LA TRANSACCION EQUIVALENTE
+     C                   Eval      TXU(1) = TRXEQUI
+     C                   Z-add     TIPPRO        TIPPRT            2 0
+     C                   Movel     MONCOD        MONCOT            3
+     C                   CALL      'DPRTVTXE'
+     C                   PARM                    TXU
+     C                   PARM                    MON
+     C                   PARM                    TXE
+     C                   PARM                    MTE
+     C                   PARM      3             CTR               2 0
+      * TRANSACCION
+     C                   MOVEL     TXU(1)        FNDTXT           11
+     C                   MOVE      MONCOT        FNDTXT
+     C                   MOVEL     FNDTXT        FNDTXE           13
+     C                   MOVE      TIPPRT        FNDTXE
+      *
+     C                   Z-ADD     1             IE@               2 0
+     C     FNDTXE        LOOKUP    MON(IE@)                               19
+     C     *IN19         IFEQ      *OFF
+     C                   MOVEL     FNDTXE        FNDTSP           13
+     C                   MOVE      '00'          FNDTSP
+     C     FNDTSP        LOOKUP    MON(IE@)                               19
+     C     *IN19         IFEQ      *OFF
+     C                   MOVE      FNDTXE        FNDTM1            5
+     C                   MOVEL     '   '         FNDTM1
+     C                   MOVEL     FNDTXE        FNDTSM           13
+     C                   MOVE      FNDTM1        FNDTSM
+     C     FNDTSM        LOOKUP    MON(IE@)                               19
+     C     *IN19         IFEQ      *OFF
+     C                   MOVE      '00'          FNDTSM
+     C     FNDTSM        LOOKUP    MON(IE@)                               19
+     C                   ENDIF
+     C                   ENDIF
+     C                   ENDIF
+     C     *IN19         IFEQ      *ON
+     C                   Z-ADD     TXE(IE@)      TXE@@@            4 0
+     C                   Z-ADD     MTE(IE@)      MTV@@@            3 0
+     C                   ELSE
+     C                   Z-ADD     0             TXE@@@
+     C                   Z-ADD     0             MTV@@@
+     C                   ENDIF
+      *
+     C                   Z-ADD     TXE@@@        TRXCOD            4 0
+     C                   Z-ADD     MTV@@@        MOTCOD            3 0
+      *
+     C                   EndSr
+      *********************************************************************
+      * LLAMA PROGRAMA
+      *********************************************************************
+     C     Llamapgm      BegSr
+     C                   MOVE      WI_TRAMADET   TRAMASEND      1024
+      * Genera XML y recupera nombre de Archivo
+      * Variable TRAMASEND envia el formato que usa el xml
+     C                   CALL      'IBACD002'                           13
+     C                   PARM                    CANAL
+     C                   PARM                    SERVICIO         10
+     C                   Parm                    Cliente          20
+     C                   Parm      TRAMASEND     Trama          2048
+     C                   Parm                    Key16            85
+     C                   Parm                    ErrServ           1
+     C                   Parm      *ZEROS        CodErrServ        3 0
+     C                   Parm                    TramaHed       2048
+     C                   Parm      WI_IDEJEC     Programa         10
+      * Variable TRAMA regresa con el correlativo de XML
+     C     CodErrServ    IFEQ      0
+     c                   z-add     0             WO2_CERR
+     c                   move      *BLanks       WO2_DERR
+     c                   movel     Trama         WO2_NARC
+     C                   ELSE
+     c                   z-add     CodErrServ    WO2_CERR
+     C                   MOVE      'IB'          MEAPLI
+     C                   Z-ADD     WO2_CERR      MECODE
+     C     IBERKEY       CHAIN     IBMERR01
+     C                   IF        %Found(IBMERR01)
+     c                   movel     MEDESC        WO2_DERR
+     C                   ELSE
+     c                   move      *BLanks       WO2_DERR
+     C                   Endif
+     c                   move      *Blanks       WO2_NARC
+     C                   ENDIF
+     C                   MOVEL     WOMODO2       DATAOU
+     c     LOGKEY        CHAIN     IBLTSI
+     C                   IF        %Found(IBLTSI)
+     C                   Z-ADD     *YEAR         PXPROA
+     C                   Z-ADD     *MONTH        PXPROM
+     C                   Z-ADD     *DAY          PXPROD
+     C                   TIME                    PXPROH
+     C                   MOVEL     WOMODO2       PXPTOU
+     C                   ENDIF
+     C                   EndSr
+      *- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
+      *      Busca posici�n de las observaciones en la transacci�n             *
+      *- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
+     C     RUT79         BEGSR
+      *
+     C     TbOKey        KLIST
+     C                   KFLD                    TbOKF1           10
+     C                   KFLD                    TbOKF2            1
+     C                   KFLD                    TbOKF3            3 0
+      *
+     C                   Eval      TbOKF1 = 'DPACDPLIB'
+     C                   Eval      TbOKF2 = 'O'
+      * Busca la posici�n de la trama donde viene el texto de Observaciones
+      * (un c�digo de descriptor, debe encontrarse en el archivo DPTB13)
+
+     C     TRXCODObs     CHAIN     DPTRX01                            19
+     C                   MoveA     *Blanks       $ValA
+
+     C                   Z-Add     0             $PObs
+     C                   Eval      $IDO = 1
+     C                   Dow       $IDO <= 10 and $PObs = 0
+     C                   Eval      TbOKF3 = ND($IDO)
+     C     TbOKey        Chain     DpTb13
+     C                   If        %Found(DpTb13)
+     C                   Eval      $PObs = $IDO
+     C                   Eval      $ValA($PObs) = Observacion
+     C                   MoveA     $ValA         DatosAlfa       400
+     C                   Movel     DatosAlfa     Resto$
+     C                   End
+     C                   Eval      $IDO = $IDO + 1
+     C                   EndDo
+      *
+     C                   ENDSR
+      *********************************************************************
+      * Bloqueo
+      *********************************************************************
+     C     Bloquea       BegSr
+     C                   CLEAR                   BLOQUOUT
+      *EQUIVALENTE
+     C                   MOVEL     *blanks       TRXEQUI
+     C                   MOVEL     TSTBLQ        TRXEQUI
+      *Asigna trama detalle a trama debito
+     C                   MOVE      '4'           OPER              1
+     C                   MOVE      'D'           OPERCORE          1
+     C                   MOVEL     WI_TRAMADET   TRADET5
+      *Busca la transferencia
+     C                   MOVE      'E'           TIPOTR
+     C     BXITKE2       CHAIN     IBTSIP07
+     C                   IF        %FOUND(IBTSIP07)
+     C                   MOVEL     DI5_CTA25     CTA25
+     C                   MOVE      DI5_MONEDA    MONEDH            3
+     C                   Z-ADD     DI5_MONTO     D3               12 2
+     C                   Z-ADD     00            D4               12 2
+     C                   MOVE      *BLANKS       Observacion      40
+      *Asigna IDS a Archivo journal
+     C                   MOVE      CLDOC         PXPCLI
+     C                   MOVE      WI_KEYPXP     PXPKEY
+     C                   Z-ADD     WI_FECHAA     PXPAZO
+     C                   Z-ADD     WI_FECHAM     PXPMES
+     C                   Z-ADD     WI_FECHAD     PXPDIA
+     C                   Z-ADD     WI_HORA       PXPHOR
+     C                   MOVEL     OPER          PXPTIP
+     C                   MOVEL     0             PXPREF
+     C                   MOVEL     CTA25         PXPCTA
+     C                   Z-ADD     0             PXPTCT
+     C                   Z-ADD     D3            PXPMNT
+     C                   MOVE      MONEDH        PXPMND
+     C                   Z-ADD     0             PXPCRR
+     C                   MOVEL     *BLANKS       PXPDRR
+     C                   Z-ADD     0             PXPAUT
+     C                   Z-ADD     0             PXPSEQ
+     C                   Z-ADD     1             PXPCOR
+     C                   WRITE     RCJTSI
+      *
+     C                   ELSE
+     C                   z-add     224           clavo1
+     c                   ENDIF
+     c                   IF        CLAVO1 = 0
+     C                   EXSR      ENVIA
+     c                   endif
+      *
+     C                   Z-ADD     CLAVO1        DO5_CERR
+     C     CLAVO1        IFEQ      0
+     C                   MOVE      *BLANKS       DO5_DERR
+     C                   MOVE      NOAUTO        DO5_NAUTOR
+     C                   ELSE
+     C                   MOVE      'DP'          MEAPLI
+     C                   Z-ADD     DO5_CERR      MECODE
+     C                   MOVE      '000000'      DO5_NAUTOR
+     C     IBERKEY       CHAIN     IBMERR01
+     C                   IF        %Found(IBMERR01)
+     c                   movel     MEDESC        DO5_DERR
+     C                   ELSE
+     c                   move      *BLanks       DO5_DERR
+     C                   Endif
+     C                   Z-ADD     clavo1        tscore
+     C                   MOVEL     'E'           TSSTAT
+     C                   ENDIF
+
+     c     LOGKEYJ       CHAIN     IBJTSI
+     C                   IF        %Found(IBJTSI)
+     C                   Z-ADD     DO5_CERR      PXPCRR
+     C                   MOVEL     DO5_DERR      PXPDRR
+     C                   MOVE      DO5_NAUTOR    PXPSEQ
+     C                   z-add     D2            IBRBLQ
+     C                   Z-ADD     TRXCOD        PXPRXC
+     c                   z-add     pxpseq        tsrefe
+     C                   UPDATE    RCJTSI
+      *Datos para nota de debito en estado de cuenta
+     C                   Z-ADD     AZOC4         DCA�AC
+     C                   Z-ADD     MESC          DCMEAC
+     C                   Z-ADD     DIAC          DCDIAC
+     C                   MOVEL     MONCOD        MOCODE
+     C                   Z-ADD     noauto        dcrefnum
+     C                   Z-ADD     noauto        MVSEQ
+     C                   UPDATE    RCTSIP07
+     C                   ENDIF
+      *Respuesta a la web
+     C                   MOVEL     BLOQUOUT      DATAOU
+      *
+     C     LOGKEY        CHAIN     IBLTSI
+     C                   IF        %Found(IBLTSI)
+     C                   Z-ADD     *YEAR         PXPROA
+     C                   Z-ADD     *MONTH        PXPROM
+     C                   Z-ADD     *DAY          PXPROD
+     C                   TIME                    PXPROH
+     C                   MOVEL     DATAOU        PXPTOU
+     C                   ENDIF
+     C                   EndSr
+      *********************************************************************
+      * Desbloquea
+      *********************************************************************
+     C     Desbloquea    BegSr
+     C                   CLEAR                   DESBLOUT
+      *EQUIVALENTE
+     C                   MOVEL     *blanks       TRXEQUI
+     C                   MOVEL     TSTDBL        TRXEQUI
+      *Asigna trama detalle a trama debito
+     C                   MOVE      '5'           OPER              1
+     C                   MOVE      'C'           OPERCORE          1
+     C                   MOVEL     WI_TRAMADET   TRADET6
+     C                   MOVE      'E'           TSTIPT
+     C     DESBKEY       CHAIN(N)  IBTSIP00
+     C                   IF        %FOUND(IBTSIP00)
+     c
+     C                   MOVEL     CTNCTA        CTA25
+     C                   MOVE      MONCOD        MONEDH            3
+     C                   Z-ADD     TSTOTT        D3               12 2
+     C                   Z-ADD     00            D4               12 2
+     C                   MOVE      *BLANKS       Observacion      40
+      *Asigna IDS a Archivo journal
+     C                   MOVE      CLDOC         PXPCLI
+     C                   MOVE      WI_KEYPXP     PXPKEY
+     C                   Z-ADD     WI_FECHAA     PXPAZO
+     C                   Z-ADD     WI_FECHAM     PXPMES
+     C                   Z-ADD     WI_FECHAD     PXPDIA
+     C                   Z-ADD     WI_HORA       PXPHOR
+     C                   MOVEL     OPER          PXPTIP
+     C                   MOVEL     0             PXPREF
+     C                   MOVEL     CTA25         PXPCTA
+     C                   Z-ADD     0             PXPTCT
+     C                   Z-ADD     D3            PXPMNT
+     C                   MOVE      MONEDH        PXPMND
+     C                   Z-ADD     0             PXPCRR
+     C                   MOVEL     *BLANKS       PXPDRR
+     C                   Z-ADD     0             PXPAUT
+     C                   Z-ADD     0             PXPSEQ
+     C                   Z-ADD     1             PXPCOR
+     C                   WRITE     RCJTSI
+     C                   ELSE
+     C                   z-add     224           clavo1
+     c                   ENDIF
+     c                   IF        CLAVO1 = 0
+     C                   EXSR      ENVIA
+     c                   endif
+      *
+     C                   Z-ADD     CLAVO1        DO6_CERR
+     C     CLAVO1        IFEQ      0
+     C                   MOVE      *BLANKS       DO6_DERR
+     C                   MOVE      NOAUTO        DO6_NAUTOR
+     C                   ELSE
+     C                   MOVE      'DP'          MEAPLI
+     C                   Z-ADD     DO6_CERR      MECODE
+     C                   MOVE      '000000'      DO5_NAUTOR
+     C     IBERKEY       CHAIN     IBMERR01
+     C                   IF        %Found(IBMERR01)
+     c                   movel     MEDESC        DO6_DERR
+     C                   ELSE
+     c                   move      *BLanks       DO6_DERR
+     C                   Endif
+     C     DESBKEY       CHAIN     IBTSIP00
+     C                   IF        %FOUND(IBTSIP00)
+     C                   MOVEL     'E'           TSSTAT
+     C                   Z-ADD     clavo1        tscore
+     C                   Z-ADD     *YEAR         TSANOP
+     C                   Z-ADD     *MONTH        TSMEOP
+     C                   Z-ADD     *DAY          TSDIOP
+     C                   TIME                    TSHOOP
+     C                   UPDATE    RCTSIP
+     C                   ENDIF
+     C                   ENDIF
+
+     c     LOGKEYJ       CHAIN     IBJTSI
+     C                   IF        %Found(IBJTSI)
+     C                   Z-ADD     DO6_CERR      PXPCRR
+     C                   MOVEL     DO6_DERR      PXPDRR
+     C                   MOVE      DO6_NAUTOR    PXPSEQ
+     C                   z-add     D2            IBRBLQ
+     C                   Z-ADD     TRXCOD        PXPRXC
+     C                   UPDATE    RCJTSI
+     C                   ENDIF
+      *Respuesta a la web
+     C                   MOVEL     DESBLOUT      DATAOU
+      *
+     C     LOGKEY        CHAIN     IBLTSI
+     C                   IF        %Found(IBLTSI)
+     C                   Z-ADD     *YEAR         PXPROA
+     C                   Z-ADD     *MONTH        PXPROM
+     C                   Z-ADD     *DAY          PXPROD
+     C                   TIME                    PXPROH
+     C                   MOVEL     DATAOU        PXPTOU
+     C                   ENDIF
+     C                   EndSr
+      *********************************************************************
+      *********************************************************************
+     C     ARMOBSDEB     BegSr
+     C                   CLEAR                   TEXTODEB         40
+     C     BKEY          KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    TSCOPA
+     C                   KFLD                    TSCOBP
+     C     BKEY          CHAIN     IBBANP01
+     C     TSTIBE        IFEQ      'I'
+     C                   EVAL      TEXTODEB=%TRIM(TSCOPA)+'/'+%TRIM(TSDEBP)+'/'+
+     C                                      %TRIM(TSNOM1)+' '+%TRIM(TSNOM2)+' '+
+     C                                      %TRIM(TSAPE1)+' '+%TRIM(TSAPE2)
+     C                   ELSE
+     C                   EVAL      TEXTODEB=%TRIM(TSCOPA)+'/'+%TRIM(TSDEBP)+'/'+
+     C                                      %TRIM(TSNOME)
+     C                   ENDIF
+     C                   EndSr

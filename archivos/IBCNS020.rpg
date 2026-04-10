@@ -1,0 +1,877 @@
+      **************************************************************************
+      * PROGRAMA: IBCNS020                                                     *
+      * PROGRAMADOR: Bryan Javier Arriaza Guitron 07/Mayo/2012                 *
+      * DESCRIPCION: Consulta de Transferencias ACH                            *
+      *                                                                        *
+      **************************************************************************
+     ‚**************************************************************************
+     ‚* Latin American Byte Inc.                                               *
+     ‚* Programador: Eddie Mendoza Lima, Junio 2024                            *
+     ‚* Cambio.....: Por Transferencias ACH con TC                             *
+     ‚*              Si es TC, la descripción de la tarjeta se recupera del    *
+     ‚*              campo alias del IBCTAS                                    *
+     ‚* Fuente Ant.: IBCNS020 Convertido desde RPG (IBBPSRC/QRPGSRC.IBCNS020)  *
+     ‚**************************************************************************
+     FIBPARM    IF   E           K DISK    INFDS(IXFD)
+     FIBPARAPL  IF   E           K DISK
+     FIBCANA01  IF   E           K DISK
+      * Archivos Variables
+     FIBTACH06  IF   E           K DISK
+     F                                     RENAME(RCTACH:RCTACH06)
+     FIBTACH04  IF   E           K DISK
+     F                                     RENAME(RCTACH:RCTACH99)
+     FIBHTAC01  IF   E           K DISK
+     FIBCLIE01  IF   E           K DISK
+     FIBCTAC01  IF   E           K DISK
+     FDPCTAS    IF   E           K DISK
+     FIBBACH01  IF   E           K DISK
+     FIBPCCH01  IF   E           K DISK
+     FIBMONE01  IF   E           K DISK
+     FIBCTAS01  IF   E           K DISK    PREFIX(i:0) RENAME(RCCTAS:RCCTAS01)
+     FIBCNS020  CF   E             WORKSTN
+     F                                     SFILE(SUBF:RECNO)
+      *
+      * ARCHIVOS SEGURIDAD
+      /COPY SEGMENSRC/QCPYLESRC,QHF00001
+      * ARREGLOS SEGURIDAD
+      /COPY SEGMENSRC/QCPYLESRC,QHE00001
+     D @BF             S              1    DIM(40)
+      * ESTRUCTURA PARA LOG F8
+     D @RA             S              1    DIM(2000)
+     D @RD             S              1    DIM(2000)
+     D VEC             S              1    DIM(25)
+      *
+      * ESTRUCTURA CAMPOS - IBTACH
+      * IDS DE MENSAJE DE ESTADO
+     D                 DS                  INZ
+     D  DESNOT                01     50
+     D  DESNO2                51     80
+     D  ACRSLN                01     80
+      * IDS DE CORREO
+     D                 DS                  INZ
+     D  CMAIL1                01     50
+     D  CMAIL2                51     80
+     D  ACMAIL                01     80
+      * NOMBRE DE ARCHIVO
+     D                 DS                  INZ
+     D  NOMAR1                01     50
+     D  NOMAR2                51    100
+     D  ACNARC                01    100
+      * CUENTA DEPOSITOS
+     D                 DS                  INZ
+     D  TIPO                  01     02  0
+     D  AGEN                  03     05  0
+     D  CORR                  06     11  0
+     D  DIVE                  12     12  0
+     D  VACIO1                13     17  0
+     D  CTAORT                01     17  0
+
+      *
+     DCanalIB          S                   like(CACODE) Inz('IB')
+      *
+      * DEFINICON ALOCAMIENTO DE REGISTROS
+      /COPY SEGMENSRC/QCPYLESRC,QHI00003
+      * DEFINICION CAMPOS SEGURIDAD
+      /COPY SEGMENSRC/QCPYLESRC,QHI00001
+      * CLIENTE
+     IRCCLIE
+     I              CLCCLI                      CLICOD
+      * CUENTA
+     IRCCTAC
+     I              ACMAIL                      MAILCT
+     I              ACTPCT                      TIPCTT
+     I              ACACCT                      CTACTA
+      *
+     IRCCANA
+     I              CACODE                      CANAL2
+     IRCHTAC
+     I              CACODE                      CANAL2
+     IRCTACH06
+     I              CACODE                      CANAL2
+     IRCTACH99
+     I              CACODE                      CANAL2
+      *
+      *
+      * DEFINICION DE LLAVES PARA PAGINEO
+     C     SECKEY        KLIST
+     C                   KFLD                    CANAPS
+     C                   KFLD                    SITUA
+     C                   KFLD                    SITUA2
+     C                   KFLD                    SITUA1
+     C                   KFLD                    ACHTRA
+     C                   KFLD                    ACTRXC
+     C     SEDKEY        KLIST
+     C                   KFLD                    CANAPS
+     C                   KFLD                    SITUB
+     C                   KFLD                    ACLOTE
+     C                   KFLD                    ACTRXC
+     C     SEDUK         KLIST
+     C                   KFLD                    CANAPS
+     C                   KFLD                    ULTNOM
+     C                   KFLD                    ULTNLO
+     C                   KFLD                    ULTTRX
+     C     SEDPK         KLIST
+     C                   KFLD                    CANAPS
+     C                   KFLD                    PRINOM
+     C                   KFLD                    PRINLO
+     C                   KFLD                    PRITRX
+     C     SECUK         KLIST
+     C                   KFLD                    CANAPS
+     C                   KFLD                    ULTCOD
+     C                   KFLD                    ULTCO1
+     C                   KFLD                    ULTCO2
+     C                   KFLD                    ULTHOR
+     C                   KFLD                    ULTTRX
+     C     SECPK         KLIST
+     C                   KFLD                    CANAPS
+     C                   KFLD                    PRICOD
+     C                   KFLD                    PRICO1
+     C                   KFLD                    PRICO2
+     C                   KFLD                    PRIHOR
+     C                   KFLD                    PRITRX
+      *
+      * DEFINICION DE LLAVES DIRECTAS
+     C     CANAKY        KLIST
+     C                   KFLD                    CANAPS
+     C     CLIKEY        KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    CODCLI
+     C     BANKEY        KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    ACBACD
+     C     CUEKEY        KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    CODCLI
+     C                   KFLD                    ACACCT
+     C     CUE2KY        KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    CODCLI
+     C                   KFLD                    ACCTDS
+     C     CODKEY        KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    CLCCLI
+     C     DETKEY        KLIST
+     C                   KFLD                    CANAL2
+     C                   KFLD                    CLCCLI
+     C                   KFLD                    ACLOTE
+     C     LOTKEY        KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    ACLOTE
+     C     COD2KY        KLIST
+     C                   KFLD                    CANAPS
+     C                   KFLD                    ACATRA
+     C                   KFLD                    ACMTRA
+     C                   KFLD                    ACDTRA
+     C                   KFLD                    ACHTRA
+     C                   KFLD                    ACTRXC
+     C     DESKEY        KLIST
+     C                   KFLD                    CANAPS
+     C                   KFLD                    CLCCLI
+     C                   KFLD                    ACLOTE
+     C                   KFLD                    ACTRXC
+     C     DPCTAK        KLIST
+     C                   KFLD                    TIPO
+     C                   KFLD                    AGEN
+     C                   KFLD                    CORR
+     C                   KFLD                    DIVE
+     C     PROKEY        KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    ACPRDT
+     C     MONKEY        KLIST
+     C                   KFLD                    ACMONE
+     C     CTAKEY        KLIST
+     C                   KFLD                    CACODE
+     C                   KFLD                    CLCCLI
+     C                   KFLD                    CODCUE
+      * DEFINICION DE LLAVES SEGURIDAD
+      /COPY SEGMENSRC/QCPYLESRC,QHC00003
+     C     UXEK2         KLIST
+     C                   KFLD                    MNCUPR
+     C     REDIBCTAS     KLIST
+     C                   KFLD                    CanalIB
+     C                   KFLD                    CLCCLI
+     C                   KFLD                    ACACCT
+      *
+      * RECEPCION DE PARAMETROS
+     C     *ENTRY        PLIST
+     C                   PARM                    CANAPS            2
+      *IDENTIFICADORES DE ARCHIVO Y PROGRAMA PARA LOG
+     C                   MOVEL     MNCAPL        LOAPLI            2
+     C                   MOVEL     'IBTACH  '    LOARCH            8
+     C                   MOVEL     'IB'          CACODE
+     C                   MOVEL     'IB'          CANAL             2
+      * DEFINICION CAMPOS PAGINEO
+     C     *LIKE         DEFINE    ACATRA        PRICOD
+     C     *LIKE         DEFINE    ACMTRA        PRICO1
+     C     *LIKE         DEFINE    ACDTRA        PRICO2
+     C     *LIKE         DEFINE    ACATRA        ULTCOD
+     C     *LIKE         DEFINE    ACMTRA        ULTCO1
+     C     *LIKE         DEFINE    ACDTRA        ULTCO2
+     C     *LIKE         DEFINE    CLCCLI        PRINOM
+     C     *LIKE         DEFINE    CLCCLI        ULTNOM
+     C     *LIKE         DEFINE    ACLOTE        PRILO1
+     C     *LIKE         DEFINE    ACLOTE        ULTLO1
+     C     *LIKE         DEFINE    ACLOTE        PRINLO
+     C     *LIKE         DEFINE    ACLOTE        ULTNLO
+     C     *LIKE         DEFINE    ACTRXC        PRITRX
+     C     *LIKE         DEFINE    ACTRXC        ULTTRX
+     C     *LIKE         DEFINE    ACHTRA        PRIHOR
+     C     *LIKE         DEFINE    ACHTRA        ULTHOR
+      *
+     C     UXEK          CHAIN     MNUSXEMP                           18
+     C     UXEK2         CHAIN     MNUSUARI                           18
+      *
+     C     '1'           CHAIN     IBPARAPL                           19
+     C                   MOVEL     PAEDFT        PARNOM
+     C     CACODE        CHAIN     IBPARM                             20
+     C     CANAPS        CHAIN     IBCANA01                           20
+     C                   MOVEL     CADESC        DESCAN
+      * RECUPERA MODULO, FECHA, APLICACION
+      /COPY IB054SRC/QCPYLESRC,IBCPYFEC
+      *
+     C                   CALL      'MNSEG201'
+     C                   PARM      '1'           SGEMPR
+     C                   PARM                    MNCAPL
+     C                   PARM                    PGM
+     C                   PARM                    SGCCAT
+     C                   PARM                    ERROR             1
+     C     ERROR         IFEQ      '0'
+     C                   MOVE      *ON           *IN15
+     C                   Z-ADD     1             SGNIVE
+     C                   EXSR      ACCE
+      *
+     C     *IN12         DOWEQ     '0'
+     C     *IN03         ANDEQ     '0'
+      *
+     C     *IN96         IFEQ      *OFF
+     C     *IN14         IFEQ      *ON
+     C     *IN15         OREQ      *ON
+     C     *IN98         OREQ      *ON
+     C     *IN99         OREQ      *ON
+     C     SELNOM        ORNE      *BLANKS
+      *
+     C                   EXSR      LLENA
+      *
+     C                   ENDIF
+     C                   ENDIF
+      * SETEA EL ARCHIVO PARA LIBERARLO
+     C     *LOVAL        SETLL     IBTACH04
+     C     *LOVAL        SETLL     IBTACH06
+      *BA   /COPY SEGMENSRC/QCPYLESRC,QHC00006
+      **
+     C     RECNO         IFGT      0
+     C                   MOVE      *ON           *IN37
+     C                   ELSE
+     C                   MOVE      *OFF          *IN37
+     C                   ENDIF
+      * PRESENTA EL SUBFILE LLENO
+     C                   Z-ADD     11            NVLPRG            2 0
+     C                   MOVE      '11'          MENU              2
+     C                   WRITE     PIE
+     C                   EXFMT     SUBCTRL
+      **
+     C     SITUB         IFNE      *BLANKS
+     C                   CLEAR                   NUMEDO
+     C                   MOVEL     SITUB         NUMEDO
+     C                   CALL      'DPCLIDER'
+     C                   PARM      *BLANKS       TIPODO            1
+     C                   PARM                    NUMEDO           18
+     C                   MOVEL     NUMEDO        SITUB
+     C                   ENDIF
+      *
+     C     *IN13         IFEQ      *ON
+     C                   CALL      'HLP200RP'
+     C                   PARM                    PGM
+     C                   PARM                    MENU
+     C                   ELSE
+     C                   EXSR      SELFUN
+     C     *IN37         IFEQ      '1'
+     C                   EXSR      SELOPC
+     C                   ENDIF
+     C                   ENDIF
+     C                   ENDDO
+     C                   ENDIF
+      **
+     C                   MOVE      *ON           *INLR
+     C                   RETURN
+      **********************************************************************
+      *            RUTINA PARA EFECTUAR LAS ALTAS AL ARCHIVO               *
+      **********************************************************************
+     C     ALTA          BEGSR
+     C                   ENDSR
+      **********************************************************************
+      *            RUTINA PARA EFECTUAR LAS BAJAS AL ARCHIVO               *
+      **********************************************************************
+     C     BAJA          BEGSR
+     C                   ENDSR
+      **********************************************************************
+      *            RUTINA PARA EFECTUAR LOS CAMBIOS AL ARCHIVO             *
+      **********************************************************************
+     C     CAMBI         BEGSR
+     C                   ENDSR
+      **********************************************************************
+      *           RUTINA PARA DESPLEGAR EL REGISTRO EN PANTALLA            *
+      **********************************************************************
+     C     DSPREG        BEGSR
+     C                   MOVE      *BLANKS       ID                2
+     C*BA        CODKEY    CHAINIBTACH               19    TRAE REG.COMPLETO
+      **
+     C                   EXSR      TRADE2
+     C                   MOVE      *ON           *IN13
+     C                   Z-ADD     55            NVLPRG            2 0
+     C                   MOVE      '55'          MENU              2
+     C     *IN12         DOWEQ     *OFF
+     C     *IN03         ANDEQ     *OFF
+     C     *IN13         ANDEQ     *ON
+     C                   EXFMT     ABC
+     C     *IN13         IFEQ      *ON
+     C                   CALL      'HLP200RP'
+     C                   PARM                    PGM
+     C                   PARM                    MENU
+     C                   ELSE
+     C     *IN98         IFEQ      *ON
+     C                   EXSR      DSPRE1
+     C                   ENDIF
+     C                   ENDIF
+     C                   ENDDO
+     C                   MOVE      *OFF          *IN12
+     C                   MOVE      *OFF          *IN98
+     C                   MOVE      *OFF          *IN99
+      **
+     C                   ENDSR
+      **********************************************************************
+      *         LLENADO DE ABC2                                            *
+      **********************************************************************
+     C     DSPRE1        BEGSR
+      **
+     C                   EXSR      TRADE2
+     C                   MOVE      *ON           *IN13
+     C                   Z-ADD     55            NVLPRG            2 0
+     C                   MOVE      '55'          MENU              2
+     C     *IN12         DOWEQ     *OFF
+     C     *IN03         ANDEQ     *OFF
+     C     *IN13         ANDEQ     *ON
+     C                   EXFMT     ABC1
+     C     *IN13         IFEQ      *ON
+     C                   CALL      'HLP200RP'
+     C                   PARM                    PGM
+     C                   PARM                    MENU
+     C                   ELSE
+     C     *IN99         IFEQ      *ON
+     C                   MOVE      *ON           *IN13
+     C                   MOVE      *ON           *IN12
+     C                   ENDIF
+     C                   ENDIF
+     C                   ENDDO
+     C                   MOVE      *OFF          *IN12
+     C                   MOVE      *OFF          *IN98
+     C                   MOVE      *OFF          *IN99
+      **
+     C                   ENDSR
+      **********************************************************************
+      * TRAE DESCRIPCIONES
+      **********************************************************************
+     C     TRADE2        BEGSR
+     C                   CLEAR                   ACRSLN
+     C                   CLEAR                   ACMAIL
+     C                   CLEAR                   ACNARC
+     C                   MOVEL     CLCCLI        CODCLI
+      * CUENTA DE ORIGEN
+      * RECUPERA INFORMACION DE ENCABEZADO
+     C     DESKEY        CHAIN     IBTACH04                           20
+     C                   MOVEL     ACACCT        CTANMO           17 0
+     C                   Z-ADD     CTANMO        CTAORT
+     C     DPCTAK        CHAIN     DPCTAS                             20
+     C                   CLEAR                   CTADES
+     C     *IN20         IFEQ      *OFF
+     C                   MOVEL     CTNOM         CTADES
+     C     ACTIPC        IFEQ      'I'
+     C                   MOVE      *ON           *IN60
+     C                   CLEAR                   TRXO
+     C     ACALBT        IFEQ      'S'
+     C                   MOVEL     'LBTR'        TRXO
+     C                   ELSE
+     C                   MOVEL     'ACH '        TRXO
+     C                   ENDIF
+     C                   ELSE
+     C                   MOVE      *OFF          *IN60
+     C                   ENDIF
+     C                   ENDIF
+     C     VACIO1        IFNE      0
+     C                   CLEAR                   CTADES
+     C                   ENDIF
+     ‚* SI ES TC EL PRODUCTO ORIGEN, LA DESCRIPCION DE LA CUENTA ORIGEN SE     *
+     ‚* MUESTRA LA TARJETA TRUNCA (EN CASO SE USE ESTO ELIMINAR TODO DEL IBCTAS*
+     C*                  IF        ACPROD = 6
+     C*                  CLEAR                   CTADES
+
+     c*                  clear                   bpEQUIVA         16
+     C*                  EVAL      bpEQUIVA = ACACCT
+     C*                  CLEAR                   bpPAN_MASK       16
+     C*                  MOVE      'C'           bpTIPO_PAN        1
+     C*                  MOVE      ' '           bpERROR_PAN       1
+     C*                  MOVEL     '*ON'         bpUSAMASK         4
+     C*                  MOVEL     '*ON'         bpGRABALOG        4
+      *Se envia a recuperar el numero de la TC truncado para recuperar el BIN
+     C*                  Call      'EQUIVA002R'                         13
+     C*                  Parm                    bpEQUIVA
+     C*                  Parm                    bpPAN_MASK
+     C*                  Parm                    bpTIPO_PAN
+     C*                  Parm                    bpERROR_PAN
+     C*                  Parm                    bpUSAMASK
+     C*                  Parm                    bpGRABALOG
+     c*                  if        not *in13
+     c*                  clear                   CTADES
+     c*                  eval      CTADES  = bpPAN_MASK
+     C*                  EndIf
+     C*                  ENDIF
+     ‚* SI ES TC EL PRODUCTO ORIGEN, LA DESCRIPCION DE LA CUENTA ORIGEN SE    *
+     ‚* RECUPERA DEL IBCTAS.CTALIA O SI LO QUE QUIEREN ES LA TARJETA TRUNCADA *
+     ‚* VER LAS LINEAS ASTERISQUEDAS PREVIAMENTE                              *
+     C                   IF        ACPROD = 6
+     C                   CLEAR                   CTADES
+     C     REDIBCTAS     CHAIN     IBCTAS01
+     C                   IF        %Found(IBCTAS01)
+     C                   MOVEL     iCTALIA       CTADES
+     C                   ENDIF
+     C                   ENDIF
+
+      * RECUPERA NOMBRE DE CLIENTE
+     C     CLIKEY        CHAIN     IBCLIE01                           20
+     C     *IN20         IFEQ      *ON
+     C                   CLEAR                   CLNOCL
+     C                   ENDIF
+      * CUENTA DESTINO
+     C                   MOVE      *BLANKS       CODCUE           25
+     C                   MOVEL     ACCTDS        CODCUE
+     C     CTAKEY        CHAIN     IBCTAC01                           20
+     C     *IN20         IFEQ      *ON
+     C                   CLEAR                   ACALIA
+     C                   ENDIF
+      * BANCO DESTINO
+     C     BANKEY        CHAIN     IBBACH01                           20
+     C     *IN20         IFEQ      *ON
+     C                   CLEAR                   ACDEBA
+     C                   ENDIF
+      * TIPO DE CUENTA
+     C     PROKEY        CHAIN     IBPCCH01                           20
+     C     *IN20         IFEQ      *ON
+     C                   CLEAR                   ACDEPC
+     C                   ENDIF
+      * MONEDA
+     C     MONKEY        CHAIN     IBMONE01                           20
+     C     *IN20         IFEQ      *ON
+     C                   CLEAR                   BRMDES
+     C                   ENDIF
+     C                   ENDSR
+      **********************************************************************
+      *                RUTINA PARA LIMPIEZA DE VALORES                     *
+      **********************************************************************
+     C     LIMPIA        BEGSR
+     C                   ENDSR
+      **********************************************************************
+      *                RUTINA PARA VER SI INGRESARON ALGUN BLANCO          *
+      **********************************************************************
+     C     VERBLA        BEGSR
+     C                   ENDSR
+      **********************************************************************
+      *                    RUTINA PARA UN USO X                            *
+      **********************************************************************
+     C     SDR           BEGSR
+      /COPY SEGMENSRC/QCPYLESRC,QHC00018
+     C                   ENDSR
+      **********************************************************************
+      *         BUSCA LONGITUD A BUSCAR                                    *
+      **********************************************************************
+     C     ENCLB         BEGSR
+     C                   MOVEA     SELNOM        @BF
+     C                   Z-ADD     40            LG                2 0
+      /COPY SEGMENSRC/QCPYLESRC,QHC00019
+     C                   ENDSR
+      **********************************************************************
+      *         LLENADO DEL SUBFILE                                        *
+      **********************************************************************
+     C     LLENA         BEGSR
+      /COPY SEGMENSRC/QCPYLESRC,QHC00020
+     C                   Z-ADD     0             LINCUR
+     C                   ENDSR
+      **********************************************************************
+      *         AVANCE DE PAGINA                                           *
+      **********************************************************************
+     C     AVPAG         BEGSR
+      *
+     C     TIPC          IFEQ      'N'
+     C     SEDUK         SETLL     IBTACH04
+     C     CANAKY        READE     IBTACH04                               95
+     C     CANAKY        READE     IBTACH04                               95
+     C     *IN95         IFEQ      *ON
+     C     SEDKEY        SETLL     IBTACH04
+     C     CANAKY        READE     IBTACH04                               95
+     C                   ENDIF
+     C                   MOVEL     CLCCLI        PRINOM
+     C                   MOVEL     ACLOTE        PRINLO
+     C                   MOVEL     ACTRXC        PRITRX
+     C     *IN95         DOWEQ     *OFF
+     C                   EXSR      TRADES
+     C     SELNOM        IFNE      *BLANKS
+     C     SELNOM:LG     SCAN      NOMCLI        POS               3 0    70
+     C                   ENDIF
+     C     *IN70         IFEQ      *ON
+     C                   ADD       1             RECNO
+     C                   MOVEL     ACTRXC        CODTRX
+     C                   WRITE     SUBF
+     C                   ENDIF
+     C     RECNO         IFLT      5
+     C     CANAKY        READE     IBTACH04                               95
+     C     *IN95         IFEQ      *OFF
+     C                   MOVEL     CLCCLI        ULTNOM
+     C                   MOVEL     ACLOTE        ULTNLO
+     C                   MOVEL     ACTRXC        ULTTRX
+     C                   ENDIF
+     C                   ELSE
+     C                   LEAVE
+     C                   ENDIF
+     C                   ENDDO
+      *
+     C                   ELSE
+      *
+     C     SECUK         SETLL     IBTACH06
+     C     CANAKY        READE     IBTACH06                               95
+     C     *IN95         IFEQ      *ON
+     C     SECKEY        SETLL     IBTACH06
+     C                   ENDIF
+     C     CANAKY        READE     IBTACH06                               95
+     C     *IN95         IFEQ      *ON
+     C     SECKEY        SETLL     IBTACH06
+     C     CANAKY        READE     IBTACH06                               95
+     C                   ENDIF
+     C                   MOVEL     ACATRA        PRICOD
+     C                   MOVEL     ACMTRA        PRICO1
+     C                   MOVEL     ACDTRA        PRICO2
+     C                   MOVEL     ACLOTE        PRILO1
+     C                   MOVEL     ACTRXC        PRITRX
+     C                   MOVEL     ACHTRA        PRIHOR
+     C     *IN95         DOWEQ     *OFF
+     C                   EXSR      TRADES
+     C     SELNOM        IFNE      *BLANKS
+     C     SELNOM:LG     SCAN      NOMCLI        POS               3 0    70
+     C                   ENDIF
+     C     *IN70         IFEQ      *ON
+     C                   ADD       1             RECNO
+     C                   MOVEL     ACTRXC        CODTRX
+     C                   WRITE     SUBF
+     C                   ENDIF
+     C     RECNO         IFLT      5
+     C     CANAKY        READE     IBTACH06                               95
+     C     *IN95         IFEQ      *OFF
+     C                   MOVEL     ACATRA        ULTCOD
+     C                   MOVEL     ACMTRA        ULTCO1
+     C                   MOVEL     ACDTRA        ULTCO2
+     C                   MOVEL     ACLOTE        ULTLO1
+     C                   MOVEL     ACTRXC        ULTTRX
+     C                   MOVEL     ACHTRA        ULTHOR
+     C                   ENDIF
+     C                   ELSE
+     C                   LEAVE
+     C                   ENDIF
+     C                   ENDDO
+      **
+     C                   ENDIF
+      *
+     C                   ENDSR
+      **********************************************************************
+      *         RETROCEDE PAGINA                                           *
+      **********************************************************************
+     C     REPAG         BEGSR
+      *
+     C     TIPC          IFEQ      'N'
+      * BUSCA PRIMER REGISTRO DE LA PANTALLA
+     C     SEDPK         SETGT     IBTACH04
+     C     CANAKY        READPE    IBTACH04                               95
+     C     CANAKY        READPE    IBTACH04                               95
+     C     *IN95         IFEQ      *ON
+     C     *HIVAL        SETGT     IBTACH04
+     C     CANAKY        READPE    IBTACH04                               95
+     C                   ENDIF
+     C     *IN95         DOWEQ     *OFF
+     C                   ADD       1             RECNO
+     C                   MOVEL     ACTRXC        CODTRX
+     C     RECNO         IFLT      5
+     C     CANAKY        READPE    IBTACH04                               95
+     C                   ELSE
+     C                   LEAVE
+     C                   ENDIF
+     C                   ENDDO
+     C                   Z-ADD     0             RECNO
+      *
+     C     DESKEY        SETLL     IBTACH04
+     C     CANAKY        READE     IBTACH04                               95
+     C                   MOVEL     CLCCLI        PRINOM
+     C                   MOVEL     ACLOTE        PRINLO
+     C                   MOVEL     ACTRXC        PRITRX
+     C     *IN95         DOWEQ     *OFF
+     C                   EXSR      TRADES
+     C     SELNOM        IFNE      *BLANKS
+     C     SELNOM:LG     SCAN      NOMCLI        POS               3 0    70
+     C                   ENDIF
+     C     *IN70         IFEQ      *ON
+     C                   ADD       1             RECNO
+     C                   MOVEL     ACTRXC        CODTRX
+     C                   WRITE     SUBF
+     C                   ENDIF
+     C     RECNO         IFLT      5
+     C     CANAKY        READE     IBTACH04                               95
+     C                   MOVEL     CLCCLI        ULTNOM
+     C                   MOVEL     ACLOTE        ULTNLO
+     C                   MOVEL     ACTRXC        ULTTRX
+     C                   ELSE
+     C                   LEAVE
+     C                   ENDIF
+     C                   ENDDO
+      *
+     C                   ELSE
+      *
+     C     SECPK         SETGT     IBTACH06
+     C     CANAKY        READPE    IBTACH06                               95
+     C     CANAKY        READPE    IBTACH06                               95
+     C     *IN95         IFEQ      *ON
+     C     *HIVAL        SETGT     IBTACH06
+     C     CANAKY        READPE    IBTACH06                               95
+     C                   ENDIF
+     C     *IN95         DOWEQ     *OFF
+     C                   ADD       1             RECNO
+     C                   MOVEL     ACTRXC        CODTRX
+     C     RECNO         IFLT      5
+     C     CANAKY        READPE    IBTACH06                               95
+     C                   ELSE
+     C                   LEAVE
+     C                   ENDIF
+     C                   ENDDO
+     C                   Z-ADD     0             RECNO
+     C     COD2KY        SETLL     IBTACH06
+     C     CANAKY        READE     IBTACH06                               95
+     C                   MOVEL     ACATRA        PRICOD
+     C                   MOVEL     ACMTRA        PRICO1
+     C                   MOVEL     ACDTRA        PRICO2
+     C                   MOVEL     ACLOTE        PRILO1
+     C                   MOVEL     ACTRXC        PRITRX
+     C                   MOVEL     ACHTRA        PRIHOR
+     C     *IN95         DOWEQ     *OFF
+     C                   EXSR      TRADES
+     C     SELNOM        IFNE      *BLANKS
+     C     SELNOM:LG     SCAN      NOMCLI        POS               3 0    70
+     C                   ENDIF
+     C     *IN70         IFEQ      *ON
+     C                   ADD       1             RECNO
+     C                   MOVEL     ACTRXC        CODTRX
+     C                   WRITE     SUBF
+     C                   ENDIF
+     C     RECNO         IFLT      5
+     C     CANAKY        READE     IBTACH06                               95
+     C                   MOVEL     ACATRA        ULTCOD
+     C                   MOVEL     ACMTRA        ULTCO1
+     C                   MOVEL     ACDTRA        ULTCO2
+     C                   MOVEL     ACLOTE        ULTLO1
+     C                   MOVEL     ACTRXC        ULTTRX
+     C                   MOVEL     ACHTRA        ULTHOR
+     C                   ELSE
+     C                   LEAVE
+     C                   ENDIF
+     C                   ENDDO
+      **
+     C                   ENDIF
+      *
+     C                   ENDSR
+      **********************************************************************
+      *         CLASIFICA POR NOMBRE                                       *
+      **********************************************************************
+     C     CLASN         BEGSR
+     C                   MOVE      'N'           TIPC              1
+     C     SEDKEY        SETLL     IBTACH04
+     C     CANAKY        READE     IBTACH04                               95
+     C                   MOVEL     CLCCLI        PRINOM
+     C                   MOVEL     ACLOTE        PRINLO
+     C                   MOVEL     ACTRXC        PRITRX
+     C                   MOVEL     ACHTRA        PRIHOR
+     C     *IN95         DOWEQ     *OFF
+     C                   EXSR      TRADES
+     C     SELNOM        IFNE      *BLANKS
+     C     SELNOM:LG     SCAN      NOMCLI        POS               3 0    70
+     C                   ENDIF
+     C     *IN70         IFEQ      *ON
+     C                   ADD       1             RECNO
+     C                   MOVEL     ACTRXC        CODTRX
+     C                   WRITE     SUBF
+     C                   ENDIF
+     C     RECNO         IFLT      5
+     C     CANAKY        READE     IBTACH04                               95
+     C                   MOVEL     CLCCLI        ULTNOM
+     C                   MOVEL     ACLOTE        ULTNLO
+     C                   MOVEL     ACTRXC        ULTTRX
+     C                   MOVEL     ACHTRA        ULTHOR
+     C                   ELSE
+     C                   LEAVE
+     C                   ENDIF
+     C                   ENDDO
+      *
+     C                   ENDSR
+      **********************************************************************
+      *         CLASIFICA POR CODIGO                                       *
+      **********************************************************************
+     C     CLASC         BEGSR
+     C                   MOVE      'C'           TIPC              1
+      *
+     C     SECKEY        SETLL     IBTACH06
+     C     CANAKY        READE     IBTACH06                               95
+     C                   MOVEL     ACATRA        PRICOD
+     C                   MOVEL     ACMTRA        PRICO1
+     C                   MOVEL     ACDTRA        PRICO2
+     C                   MOVEL     ACLOTE        PRILO1
+     C                   MOVEL     ACTRXC        PRITRX
+     C                   MOVEL     ACHTRA        PRIHOR
+     C     *IN95         DOWEQ     *OFF
+     C                   EXSR      TRADES
+     C     SELNOM        IFNE      *BLANKS
+     C     SELNOM:LG     SCAN      NOMCLI        POS               3 0    70
+     C                   ENDIF
+     C     *IN70         IFEQ      *ON
+     C                   ADD       1             RECNO
+     C                   MOVEL     ACTRXC        CODTRX
+     C                   WRITE     SUBF
+     C                   ENDIF
+     C     RECNO         IFLT      5
+     C     CANAKY        READE     IBTACH06                               95
+     C                   MOVEL     ACATRA        ULTCOD
+     C                   MOVEL     ACMTRA        ULTCO1
+     C                   MOVEL     ACDTRA        ULTCO2
+     C                   MOVEL     ACLOTE        ULTLO1
+     C                   MOVEL     ACTRXC        ULTTRX
+     C                   MOVEL     ACHTRA        ULTHOR
+     C                   ELSE
+     C                   LEAVE
+     C                   ENDIF
+     C                   ENDDO
+      *
+     C                   ENDSR
+      **********************************************************************
+      *         ACCESO                                                     *
+      **********************************************************************
+     C     ACCE          BEGSR
+      /COPY SEGMENSRC/QCPYLESRC,QHC00021
+     C                   ENDSR
+      **********************************************************************
+      *         SELECCIONA OPCIONES                                        *
+      **********************************************************************
+     C     SELOPC        BEGSR
+     C                   MOVE      *OFF          *IN96
+     C                   READC     SUBF                                   18
+     C     *IN18         DOWEQ     *OFF
+     C     *IN12         ANDEQ     *OFF
+     C                   MOVE      *OFF          *IN97
+     C     SELECT        IFNE      0
+     C                   MOVE      'N'           PASA              1
+     C     O@(SELECT)    IFEQ      '1'
+     C     CO(SELECT)    IFEQ      'S'
+     C                   EXSR      CAPPAS
+     C                   ELSE
+     C                   MOVE      'S'           PASA              1
+     C                   ENDIF
+     C     PASA          IFEQ      'S'
+     C     SELECT        IFEQ      5
+     C                   MOVE      0             SELECT
+     C                   UPDATE    SUBF
+     C                   EXSR      DSPREG
+     C                   ENDIF
+     C                   ENDIF
+     C     PASA          IFEQ      'S'
+     C     SELECT        IFEQ      6
+      * LLAMA A PROGRAMA DE DETALLE DE TRANSFERENCIA
+     C     DETKEY        CHAIN     IBHTAC01                           20
+     C     *IN20         IFEQ      *OFF
+     C                   MOVE      0             SELECT
+     C                   UPDATE    SUBF
+     C                   CALL      'IBCNS021'
+     C                   PARM                    CACODE
+     C                   PARM                    CLCCLI
+     C                   PARM                    ACLOTE
+     C                   PARM                    CODTRX
+     C                   ELSE
+     C                   MOVE      *ON           *IN79
+     C                   ENDIF
+     C                   ENDIF
+      **
+     C                   ENDIF
+     C                   ELSE
+     C                   MOVEA     '11'          *IN(96)
+     C                   UPDATE    SUBF
+     C                   LEAVE
+     C                   ENDIF
+     C                   ELSE
+     C                   MOVE      '0'           *IN97
+     C                   UPDATE    SUBF
+     C                   ENDIF
+     C                   READC     SUBF                                   18
+     C                   ENDDO
+     C                   Z-ADD     0             SELECT
+     C                   MOVE      *OFF          *IN97
+     C                   ENDSR
+      **********************************************************************
+      * CAPTURA PASWORD
+      **********************************************************************
+     C     CAPPAS        BEGSR
+      */COPY SEGMENSRC/QCPYLESRC,QHC00024
+     C                   ENDSR
+      **********************************************************************
+      * SELECCION DE FUNCIONES
+      **********************************************************************
+     C     SELFUN        BEGSR
+      /COPY SEGMENSRC/QCPYLESRC,QHC00023
+      * LLAMA A LOG
+     C     *IN08         IFEQ      *ON
+     C                   MOVE      'N'           PASA
+     C     CF(8)         IFEQ      'S'
+     C                   EXSR      CAPPAS
+     C                   ELSE
+     C                   MOVE      'S'           PASA
+     C                   ENDIF
+     C     PASA          CASEQ     'S'           DSPLOG
+     C                   ENDCS
+     C                   ENDIF
+     C                   ENDSR
+      **********************************************************************
+      * MANEJO DE INDICADORES
+      **********************************************************************
+     C     MANIND        BEGSR
+      /COPY SEGMENSRC/QCPYLESRC,QHC00033
+     C                   ENDSR
+      **********************************************************************
+      * TRAE DESCRIPCIONES
+      **********************************************************************
+     C     TRADES        BEGSR
+      * RECUPERA NOMBRE DE CLIENTE
+     C                   MOVE      CLCCLI        CODCLI           20
+     C     CLIKEY        CHAIN     IBCLIE01                           20
+     C                   MOVEL     ACMONE        TMPMON            3
+     C                   CLEAR                   NOMCLI
+     C     *IN20         IFEQ      *OFF
+     C                   MOVEL     CLNOCL        NOMCLI
+     C                   ENDIF
+     C     ACTIPC        IFEQ      'I'
+     C                   CLEAR                   TRXO
+     C     ACALBT        IFEQ      'S'
+     C                   MOVEL     'LBTR'        TRXO
+     C                   ELSE
+     C                   MOVEL     'ACH '        TRXO
+     C                   ENDIF
+     C                   ELSE
+     C                   CLEAR                   TRXO
+     C                   ENDIF
+     C                   ENDSR
+      *****************************************************************
+      * DESPLIEGA LOG                                                 *
+      *****************************************************************
+     C     DSPLOG        BEGSR
+     C                   CALL      'LOLCN001'
+     C                   PARM      MNCAPL        LOAPLI            2
+     C                   PARM      'IBTACH'      LOARCH            8
+     C                   ENDSR
