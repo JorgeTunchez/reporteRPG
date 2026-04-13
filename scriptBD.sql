@@ -30,3 +30,14 @@ CREATE TABLE dbo.rpg_llamadas (
     sentencia VARCHAR(1000) NULL,
     FOREIGN KEY (id_analisis) REFERENCES dbo.rpg_analisis(id_analisis)
 );
+
+CREATE TABLE rpg_archivos_procesados (
+    id_archivo INT IDENTITY(1,1) PRIMARY KEY,
+    nombre_archivo VARCHAR(255) NOT NULL,
+    hash_archivo VARCHAR(64) NOT NULL,
+    fecha_proceso DATETIME NOT NULL DEFAULT GETDATE(),
+    UNIQUE(hash_archivo)
+);
+
+CREATE UNIQUE INDEX UX_archivos_nombre_fecha
+ON rpg_archivos_procesados(nombre_archivo);

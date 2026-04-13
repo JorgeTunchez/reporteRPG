@@ -1,19 +1,65 @@
 import os
 import re
 import pyodbc
+import hashlib
 from datetime import datetime
 
 
 # Conexión a la base de datos
 def conectar_bd():
-    conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};' \
-    'SERVER=10.2.214.69;' \
-    'DATABASE=DB_base_conocimiento_2;' \
-    'UID=C3;' \
-    'Encrypt=yes;' \
-    'TrustServerCertificate=yes;' \
-    'PWD=R3s1l13nc14C0d1g02024.')
+    conn = pyodbc.connect(
+        'DRIVER={ODBC Driver 18 for SQL Server};'
+        'SERVER=10.2.214.69;'
+        'DATABASE=DB_base_conocimiento_2;'
+        'UID=C3;'
+        'Encrypt=yes;'
+        'TrustServerCertificate=yes;'
+        'PWD=R3s1l13nc14C0d1g02024.'
+    )
     return conn
+
+
+# =========================
+# VALIDACIONES DE DUPLICIDAD
+# =========================
+
+
+# Función para calcular el hash de un archivo
+def calcular_hash_archivo(ruta_archivo):
+    sha256 = hashlib.sha256()
+
+    with open(ruta_archivo, "rb") as f:
+        for bloque in iter(lambda: f.read(8192), b""):
+            sha256.update(bloque)
+
+    return sha256.hexdigest()
+
+
+# Función para verificar si un archivo ya fue procesado
+def archivo_ya_procesado(conn, hash_archivo):
+    cursor = conn.cursor()
+
+    sql = """
+    SELECT 1
+    FROM dbo.rpg_archivos_procesados
+    WHERE hash_archivo = ?
+    """
+
+    cursor.execute(sql, (hash_archivo,))
+    return cursor.fetchone() is not None
+
+
+# Función para registrar un archivo procesado en la base de datos
+def registrar_archivo_procesado(conn, nombre_archivo, hash_archivo):
+    cursor = conn.cursor()
+
+    sql = """
+    INSERT INTO dbo.rpg_archivos_procesados (nombre_archivo, hash_archivo, fecha_proceso)
+    VALUES (?, ?, ?)
+    """
+
+    cursor.execute(sql, (nombre_archivo, hash_archivo, datetime.now()))
+    conn.commit()
 
 
 # Función para analizar un archivo RPG
@@ -56,7 +102,11 @@ def analizar_rpg(ruta_archivo):
 
             # Detectar llamadas CALL / CALLP
             if "CALL" in linea_limpia.upper():
-                match = re.search(r"\bCALLP?\b\s+['\"]?([A-Z0-9_]+)['\"]?", linea_limpia, re.IGNORECASE)
+                match = re.search(
+                    r"\bCALLP?\b\s+['\"]?([A-Z0-9_]+)['\"]?",
+                    linea_limpia,
+                    re.IGNORECASE
+                )
                 if match:
                     nombre_programa = match.group(1).upper()
 
@@ -151,7 +201,7 @@ def insertar_llamadas(conn, id_analisis, llamadas):
 
     cursor = conn.cursor()
     cursor.fast_executemany = True
-    
+
     sql = """
     INSERT INTO dbo.rpg_llamadas (id_analisis, archivo_rpg, nombre_programa, sentencia)
     VALUES (?, ?, ?, ?)
@@ -183,10 +233,18 @@ def procesar_directorio(ruta_carpeta):
         total_archivos = 0
         total_colas = 0
         total_llamadas = 0
+        total_omitidos = 0
 
         for archivo in os.listdir(ruta_carpeta):
             if archivo.lower().endswith(".rpg"):
                 ruta_archivo = os.path.join(ruta_carpeta, archivo)
+                hash_archivo = calcular_hash_archivo(ruta_archivo)
+
+                if archivo_ya_procesado(conn, hash_archivo):
+                    print(f"[OMITIDO] El archivo ya fue analizado: {archivo}")
+                    total_omitidos += 1
+                    continue
+
                 print(f"Procesando archivo: {ruta_archivo}")
 
                 resultado = analizar_rpg(ruta_archivo)
@@ -195,6 +253,8 @@ def procesar_directorio(ruta_carpeta):
                 insertar_colas(conn, id_analisis, resultado["colas"])
                 insertar_llamadas(conn, id_analisis, resultado["llamadas"])
 
+                registrar_archivo_procesado(conn, archivo, hash_archivo)
+
                 total_rpg += 1
                 total_archivos += len(resultado["archivos"])
                 total_colas += len(resultado["colas"])
@@ -202,6 +262,7 @@ def procesar_directorio(ruta_carpeta):
 
         print("\n===== RESUMEN =====")
         print(f"Archivos RPG procesados: {total_rpg}")
+        print(f"Archivos omitidos por duplicidad: {total_omitidos}")
         print(f"Archivos detectados en RPG: {total_archivos}")
         print(f"Colas detectadas: {total_colas}")
         print(f"Llamadas detectadas: {total_llamadas}")
