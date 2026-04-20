@@ -26,9 +26,18 @@ CREATE TABLE dbo.rpg_llamadas (
     id_llamada INT IDENTITY(1,1) PRIMARY KEY,
     id_analisis INT NOT NULL,
     archivo_rpg VARCHAR(255) NOT NULL,
-    nombre_programa VARCHAR(255) NOT NULL,
-    sentencia VARCHAR(1000) NULL,
-    FOREIGN KEY (id_analisis) REFERENCES dbo.rpg_analisis(id_analisis)
+    nombre_programa VARCHAR(100) NOT NULL,
+    sentencia VARCHAR(MAX) NULL,
+    linea_call INT NULL
+);
+
+CREATE TABLE dbo.rpg_llamadas_parametros (
+    id_parametro INT IDENTITY(1,1) PRIMARY KEY,
+    id_llamada INT NOT NULL,
+    orden_parametro INT NOT NULL,
+    valor_parametro VARCHAR(500) NULL,
+    sentencia_parametro VARCHAR(1000) NULL,
+    FOREIGN KEY (id_llamada) REFERENCES dbo.rpg_llamadas(id_llamada)
 );
 
 CREATE TABLE rpg_archivos_procesados (

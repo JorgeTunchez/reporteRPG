@@ -19,12 +19,10 @@ def conectar_bd():
     return conn
 
 
-# =========================
-# VALIDACIONES DE DUPLICIDAD
-# =========================
+# =========================================================
+# CONTROL DE DUPLICIDAD DE ARCHIVOS PROCESADOS
+# =========================================================
 
-
-# Función para calcular el hash de un archivo
 def calcular_hash_archivo(ruta_archivo):
     sha256 = hashlib.sha256()
 
@@ -35,7 +33,6 @@ def calcular_hash_archivo(ruta_archivo):
     return sha256.hexdigest()
 
 
-# Función para verificar si un archivo ya fue procesado
 def archivo_ya_procesado(conn, hash_archivo):
     cursor = conn.cursor()
 
@@ -49,7 +46,6 @@ def archivo_ya_procesado(conn, hash_archivo):
     return cursor.fetchone() is not None
 
 
-# Función para registrar un archivo procesado en la base de datos
 def registrar_archivo_procesado(conn, nombre_archivo, hash_archivo):
     cursor = conn.cursor()
 
@@ -62,18 +58,30 @@ def registrar_archivo_procesado(conn, nombre_archivo, hash_archivo):
     conn.commit()
 
 
-# Función para analizar un archivo RPG
+# =========================================================
+# ANALISIS DEL ARCHIVO RPG
+# =========================================================
+
 def analizar_rpg(ruta_archivo):
     archivos = []
     colas = []
     llamadas = []
 
     nombre_archivo_rpg = os.path.basename(ruta_archivo)
+    llamada_actual = None
 
     with open(ruta_archivo, "r", encoding="utf-8", errors="ignore") as f:
-        for linea in f:
+        for numero_linea, linea in enumerate(f, start=1):
             linea_original = linea.rstrip("\n")
             linea_limpia = linea_original.strip()
+            linea_upper = linea_limpia.upper()
+
+            if not linea_limpia:
+                continue
+
+            # Ignorar comentarios simples
+            if linea_limpia.startswith("*"):
+                continue
 
             # Detectar archivos RPG (líneas F)
             if linea_limpia.startswith("F"):
@@ -86,37 +94,100 @@ def analizar_rpg(ruta_archivo):
                     })
 
             # Detectar colas
-            if "QRCVDTAQ" in linea_limpia.upper():
+            if "QRCVDTAQ" in linea_upper:
                 colas.append({
                     "archivo_rpg": nombre_archivo_rpg,
                     "nombre_cola": "QRCVDTAQ",
                     "sentencia": linea_original.strip()
                 })
 
-            if "QSNDDTAQ" in linea_limpia.upper():
+            if "QSNDDTAQ" in linea_upper:
                 colas.append({
                     "archivo_rpg": nombre_archivo_rpg,
                     "nombre_cola": "QSNDDTAQ",
                     "sentencia": linea_original.strip()
                 })
 
-            # Detectar llamadas CALL / CALLP
-            if "CALL" in linea_limpia.upper():
-                match = re.search(
-                    r"\bCALLP?\b\s+['\"]?([A-Z0-9_]+)['\"]?",
-                    linea_limpia,
-                    re.IGNORECASE
-                )
-                if match:
-                    nombre_programa = match.group(1).upper()
+            # Detectar CALL / CALLP
+            match_call = re.search(
+                r"\bCALLP?\b\s+['\"]?([A-Z0-9_]+)['\"]?",
+                linea_limpia,
+                re.IGNORECASE
+            )
 
-                    # Evitar guardar colas también como llamadas normales
-                    if nombre_programa not in ("QRCVDTAQ", "QSNDDTAQ"):
-                        llamadas.append({
-                            "archivo_rpg": nombre_archivo_rpg,
-                            "nombre_programa": nombre_programa,
-                            "sentencia": linea_original.strip()
-                        })
+            if match_call:
+                nombre_programa = match_call.group(1).upper()
+
+                # Evitar guardar colas también como llamadas normales
+                if nombre_programa in ("QRCVDTAQ", "QSNDDTAQ"):
+                    if llamada_actual is not None:
+                        llamadas.append(llamada_actual)
+
+                    llamada_actual = {
+                        "archivo_rpg": nombre_archivo_rpg,
+                        "nombre_programa": nombre_programa,
+                        "sentencia": linea_original.strip(),
+                        "linea_call": numero_linea,
+                        "parametros": []
+                    }
+                    continue
+
+                if llamada_actual is not None:
+                    llamadas.append(llamada_actual)
+
+                llamada_actual = {
+                    "archivo_rpg": nombre_archivo_rpg,
+                    "nombre_programa": nombre_programa,
+                    "sentencia": linea_original.strip(),
+                    "linea_call": numero_linea,
+                    "parametros": []
+                }
+                continue
+
+            # Detectar PARM asociado a la llamada actual
+            if llamada_actual is not None:
+                match_parm = re.search(r"\bPARM\b", linea_limpia, re.IGNORECASE)
+
+                if match_parm:
+                    sentencia_param = linea_original.strip()
+
+                    contenido = re.sub(
+                        r"^.*?\bPARM\b",
+                        "",
+                        linea_limpia,
+                        flags=re.IGNORECASE
+                    ).strip()
+
+                    partes = contenido.split()
+
+                    nombre_parametro = None
+                    valor_parametro = None
+
+                    if len(partes) == 1:
+                        nombre_parametro = partes[0]
+
+                    elif len(partes) >= 2:
+                        nombre_parametro = partes[0]
+                        valor_parametro = partes[1]
+
+                    # Guardar
+                    llamada_actual["parametros"].append({
+                        "orden": len(llamada_actual["parametros"]) + 1,
+                        "nombre": nombre_parametro,
+                        "valor": valor_parametro,
+                        "sentencia": linea_original.strip(),
+                        "linea_parametro": numero_linea
+                    })
+                    
+                    continue
+
+                # Si aparece otra línea distinta a PARM, cerramos llamada actual
+                llamadas.append(llamada_actual)
+                llamada_actual = None
+
+        # Guardar la última llamada abierta
+        if llamada_actual is not None:
+            llamadas.append(llamada_actual)
 
     return {
         "archivo_rpg": nombre_archivo_rpg,
@@ -126,14 +197,17 @@ def analizar_rpg(ruta_archivo):
     }
 
 
-# Funciones para insertar datos en la base de datos
+# =========================================================
+# INSERTS GENERALES
+# =========================================================
+
 def insertar_analisis(conn, fuente):
     cursor = conn.cursor()
     cursor.fast_executemany = True
     ahora = datetime.now()
 
     sql = """
-    INSERT INTO rpg_analisis (fuente, fecha, hora)
+    INSERT INTO dbo.rpg_analisis (fuente, fecha, hora)
     OUTPUT INSERTED.id_analisis
     VALUES (?, ?, ?)
     """
@@ -145,7 +219,6 @@ def insertar_analisis(conn, fuente):
     return id_analisis
 
 
-# Funciones para insertar archivos, colas y llamadas en la base de datos
 def insertar_archivos(conn, id_analisis, archivos):
     if not archivos:
         return
@@ -167,7 +240,6 @@ def insertar_archivos(conn, id_analisis, archivos):
     conn.commit()
 
 
-# Función para insertar colas en la base de datos
 def insertar_colas(conn, id_analisis, colas):
     if not colas:
         return
@@ -194,34 +266,75 @@ def insertar_colas(conn, id_analisis, colas):
     conn.commit()
 
 
-# Función para insertar llamadas en la base de datos
-def insertar_llamadas(conn, id_analisis, llamadas):
-    if not llamadas:
+# =========================================================
+# INSERTS DE LLAMADAS Y PARAMETROS
+# =========================================================
+
+def insertar_llamada(conn, id_analisis, llamada):
+    cursor = conn.cursor()
+
+    sql = """
+    INSERT INTO dbo.rpg_llamadas
+    (id_analisis, archivo_rpg, nombre_programa, sentencia)
+    OUTPUT INSERTED.id_llamada
+    VALUES (?, ?, ?, ?)
+    """
+
+    cursor.execute(
+        sql,
+        (
+            id_analisis,
+            llamada["archivo_rpg"],
+            llamada["nombre_programa"],
+            llamada["sentencia"]
+        )
+    )
+
+    id_llamada = cursor.fetchone()[0]
+    conn.commit()
+    return id_llamada
+
+
+def insertar_parametros_llamada(conn, id_llamada, parametros):
+    if not parametros:
         return
 
     cursor = conn.cursor()
     cursor.fast_executemany = True
 
     sql = """
-    INSERT INTO dbo.rpg_llamadas (id_analisis, archivo_rpg, nombre_programa, sentencia)
+    INSERT INTO dbo.rpg_llamadas_parametros
+    (id_llamada, orden_parametro, valor_parametro, sentencia_parametro)
     VALUES (?, ?, ?, ?)
     """
 
     data = [
         (
-            id_analisis,
-            item["archivo_rpg"],
-            item["nombre_programa"],
-            item["sentencia"]
+            id_llamada,
+            p["orden"],
+            p.get("valor"),   # ← 10
+            p.get("nombre")   # ← DTQI
         )
-        for item in llamadas
+        for p in parametros
     ]
 
     cursor.executemany(sql, data)
     conn.commit()
 
 
-# Función principal para procesar la carpeta de archivos RPG
+def insertar_llamadas(conn, id_analisis, llamadas):
+    if not llamadas:
+        return
+
+    for llamada in llamadas:
+        id_llamada = insertar_llamada(conn, id_analisis, llamada)
+        insertar_parametros_llamada(conn, id_llamada, llamada.get("parametros", []))
+
+
+# =========================================================
+# PROCESO PRINCIPAL
+# =========================================================
+
 def procesar_directorio(ruta_carpeta):
     conn = conectar_bd()
 
@@ -233,6 +346,7 @@ def procesar_directorio(ruta_carpeta):
         total_archivos = 0
         total_colas = 0
         total_llamadas = 0
+        total_parametros = 0
         total_omitidos = 0
 
         for archivo in os.listdir(ruta_carpeta):
@@ -259,6 +373,7 @@ def procesar_directorio(ruta_carpeta):
                 total_archivos += len(resultado["archivos"])
                 total_colas += len(resultado["colas"])
                 total_llamadas += len(resultado["llamadas"])
+                total_parametros += sum(len(ll.get("parametros", [])) for ll in resultado["llamadas"])
 
         print("\n===== RESUMEN =====")
         print(f"Archivos RPG procesados: {total_rpg}")
@@ -266,6 +381,7 @@ def procesar_directorio(ruta_carpeta):
         print(f"Archivos detectados en RPG: {total_archivos}")
         print(f"Colas detectadas: {total_colas}")
         print(f"Llamadas detectadas: {total_llamadas}")
+        print(f"Parámetros detectados: {total_parametros}")
 
     except Exception as e:
         print(f"Error durante el proceso: {e}")
