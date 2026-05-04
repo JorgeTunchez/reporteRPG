@@ -23,6 +23,7 @@ def conectar_bd():
 # CONTROL DE DUPLICIDAD DE ARCHIVOS PROCESADOS
 # =========================================================
 
+# Para evitar procesar el mismo archivo RPG varias veces, se calcula un hash (SHA-256) del contenido del archivo.
 def calcular_hash_archivo(ruta_archivo):
     sha256 = hashlib.sha256()
 
@@ -33,6 +34,7 @@ def calcular_hash_archivo(ruta_archivo):
     return sha256.hexdigest()
 
 
+# Verifica si un archivo con el mismo hash ya fue procesado previamente.
 def archivo_ya_procesado(conn, hash_archivo):
     cursor = conn.cursor()
 
@@ -46,6 +48,7 @@ def archivo_ya_procesado(conn, hash_archivo):
     return cursor.fetchone() is not None
 
 
+# Si el archivo no ha sido procesado, se registra su hash en la tabla de archivos procesados para futuras referencias.
 def registrar_archivo_procesado(conn, nombre_archivo, hash_archivo):
     cursor = conn.cursor()
 
@@ -62,6 +65,7 @@ def registrar_archivo_procesado(conn, nombre_archivo, hash_archivo):
 # ANALISIS DEL ARCHIVO RPG
 # =========================================================
 
+# Esta función analiza un archivo RPG específico, extrayendo información sobre los archivos utilizados, las colas y las llamadas a otros programas, junto con sus parámetros asociados.
 def analizar_rpg(ruta_archivo):
     archivos = []
     colas = []
@@ -201,6 +205,7 @@ def analizar_rpg(ruta_archivo):
 # INSERTS GENERALES
 # =========================================================
 
+# Inserta un nuevo análisis en la tabla rpg_analisis y devuelve el id generado para ese análisis.
 def insertar_analisis(conn, fuente):
     cursor = conn.cursor()
     cursor.fast_executemany = True
@@ -219,6 +224,7 @@ def insertar_analisis(conn, fuente):
     return id_analisis
 
 
+# Inserta los archivos detectados en el análisis actual en la tabla rpg_archivos, asociándolos al id_analisis correspondiente.
 def insertar_archivos(conn, id_analisis, archivos):
     if not archivos:
         return
@@ -240,6 +246,7 @@ def insertar_archivos(conn, id_analisis, archivos):
     conn.commit()
 
 
+# Inserta las colas detectadas en el análisis actual en la tabla rpg_colas, asociándolas al id_analisis correspondiente.
 def insertar_colas(conn, id_analisis, colas):
     if not colas:
         return
@@ -270,6 +277,7 @@ def insertar_colas(conn, id_analisis, colas):
 # INSERTS DE LLAMADAS Y PARAMETROS
 # =========================================================
 
+# Inserta una llamada detectada en el análisis actual en la tabla rpg_llamadas, asociándola al id_analisis correspondiente, y devuelve el id generado para esa llamada.
 def insertar_llamada(conn, id_analisis, llamada):
     cursor = conn.cursor()
 
@@ -294,7 +302,7 @@ def insertar_llamada(conn, id_analisis, llamada):
     conn.commit()
     return id_llamada
 
-
+# Inserta los parámetros asociados a una llamada específica en la tabla rpg_llamadas_parametros, utilizando el id_llamada generado para esa llamada.
 def insertar_parametros_llamada(conn, id_llamada, parametros):
     if not parametros:
         return
@@ -322,6 +330,7 @@ def insertar_parametros_llamada(conn, id_llamada, parametros):
     conn.commit()
 
 
+# Función principal que inserta las llamadas detectadas y sus parámetros asociados en la base de datos, utilizando las funciones anteriores para cada llamada encontrada en el análisis del archivo RPG.
 def insertar_llamadas(conn, id_analisis, llamadas):
     if not llamadas:
         return
@@ -335,6 +344,7 @@ def insertar_llamadas(conn, id_analisis, llamadas):
 # PROCESO PRINCIPAL
 # =========================================================
 
+# Esta función procesa todos los archivos RPG en un directorio específico, realizando el análisis de cada archivo y almacenando los resultados en la base de datos, mientras controla la duplicidad de archivos procesados mediante hashes.
 def procesar_directorio(ruta_carpeta):
     conn = conectar_bd()
 
